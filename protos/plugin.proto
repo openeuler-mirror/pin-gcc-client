@@ -1,0 +1,24 @@
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.grpc.plugin";
+option java_outer_classname = "PluginProto";
+option objc_class_prefix = "PLG";
+
+package plugin;
+
+// The plugin service definition.
+service PluginService {
+    rpc Optimize (stream ClientMsg) returns (stream ServerMsg) {}
+}
+
+message ClientMsg {
+    string attribute = 1;
+    string value = 2;
+}
+
+message ServerMsg {
+    string attribute = 1;
+    string value = 2;
+}
