@@ -2,10 +2,13 @@
 
 #### 介绍
 A Pin (Plug-IN framework) client is implemented based on GCC plugin and can execute the compiler optimization pass in GCC.
+当前仅支持统计类插件的Demo展示。本项目持续迭代中，欢迎广大开发者加入。
 
 #### 软件架构
-软件架构说明
-
+Pin(Plug-IN framework, 插件框架)为生态伙伴提供基于插件IR的编译器优化开发能力，允许开发者使用插件API开发编译器优化pass，并以插件形式向主流编译器（如GCC）提供优化能力。
+本框架采用插件服务端组件(Pin-Server)和插件客户端模块(Pin-gcc-client)组成代理模式。
+Pin-Server为开发者提供插件API进行编译器优化pass的开发。
+Pin-gcc-client基于GCC插件实现，可以在GCC场景执行优化pass。
 
 #### 安装教程
 

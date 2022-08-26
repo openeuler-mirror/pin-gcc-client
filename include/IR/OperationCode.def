@@ -1,0 +1,6 @@
+/* Definition of opcode */
+DEF_CODE(GRAPH, graphType)
+DEF_CODE(FUNCTION, graphType)
+DEF_CODE(BASIC_BLOCK, graphType)
+DEF_CODE(STMT, graphType)
+
