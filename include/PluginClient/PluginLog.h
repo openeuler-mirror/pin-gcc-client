@@ -17,29 +17,29 @@
    Author: Mingchuan Wu and Yancheng Li
    Create: 2022-08-18
    Description:
-    This file contains the declaration of the ToPluginInterface class
+    This file contains the declaration of the Plugin_Log class.
 */
 
-#ifndef TO_PLUGIN_INTERFACE_H
-#define TO_PLUGIN_INTERFACE_H
+#ifndef PLUGIN_LOG_H
+#define PLUGIN_LOG_H
 
-#include <vector>
-#include "IR/Operation.h"
+namespace PinClient {
+#define LOG_FILE_SIZE   (10 * 1024 * 1024)
 
-namespace Plugin_IR {
-using std::vector;
-
-/* The ToPluginInterface class defines the plugin interfaces that different
-   compilers need to implement. */
-class ToPluginInterface {
-public:
-    /* Operation. */
-    virtual vector<Operation> GetAllFunction() = 0;
-    /* Decl. */
-    virtual Decl GetDeclByID(uintptr_t id) = 0;
-    /* Type. */
-    virtual Type GetTypeByID(uintptr_t id) = 0;
+enum LogPriority : uint8_t {
+    PRIORITY_ERROR = 0,
+    PRIORITY_WARN,
+    PRIORITY_INFO,
+    PRIORITY_DEBUG
 };
-} // namespace Plugin_IR
+void LogPrint(LogPriority priority, const char *tag, const char *fmt, ...);
+void CloseLog(void);
+bool SetLogPriority(LogPriority priority);
 
-#endif // TO_PLUGIN_INTERFACE_H
+#define LOGE(...) LogPrint(PRIORITY_ERROR, "ERROR:", __VA_ARGS__)
+#define LOGW(...) LogPrint(PRIORITY_WARN, "WARN:", __VA_ARGS__)
+#define LOGI(...) LogPrint(PRIORITY_INFO, "", __VA_ARGS__)
+#define LOGD(...) LogPrint(PRIORITY_DEBUG, "DEBUG:", __VA_ARGS__)
+} // namespace PinClient
+
+#endif

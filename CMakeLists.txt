@@ -38,7 +38,7 @@ add_custom_command(
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 # plg_grpc_proto
-add_library(plg_grpc_proto
+add_library(plg_grpc_proto STATIC
   ${plg_grpc_srcs}
   ${plg_grpc_hdrs}
   ${plg_proto_srcs}
@@ -48,7 +48,7 @@ target_link_libraries(plg_grpc_proto
   ${GRPC_PP_LIBRARY}
   ${PROTOBUF_LIBRARY})
 
-add_library(pin_gcc_client SHARED "Plugin_Log.cpp" "PluginClient.cpp" "ir_trans_plugin.cpp" "lib/Conversion/GimpleToPlugin.cpp" "lib/PluginAPI/PluginAPI.cpp")
+add_library(pin_gcc_client SHARED "lib/PluginClient/PluginLog.cpp" "lib/PluginClient/PluginClient.cpp" "lib/IRTrans/IRTransPlugin.cpp" "lib/Conversion/GimpleToPlugin.cpp" "lib/PluginAPI/PluginAPI.cpp")
 target_link_libraries(pin_gcc_client
   ${JSONCPP_LIBRARY}
   plg_grpc_proto
@@ -58,6 +58,7 @@ target_link_libraries(pin_gcc_client
 
 # install
 install(TARGETS pin_gcc_client LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/configs/pin-gcc-client.json" DESTINATION bin)
 
 # uninstall target
 if(NOT TARGET uninstall)

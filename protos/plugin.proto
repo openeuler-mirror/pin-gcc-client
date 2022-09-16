@@ -10,7 +10,7 @@ package plugin;
 
 // The plugin service definition.
 service PluginService {
-    rpc Optimize (stream ClientMsg) returns (stream ServerMsg) {}
+    rpc ReceiveSendMsg (stream ClientMsg) returns (stream ServerMsg) {}
 }
 
 message ClientMsg {

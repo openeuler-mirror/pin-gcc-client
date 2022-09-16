@@ -17,29 +17,14 @@
    Author: Mingchuan Wu and Yancheng Li
    Create: 2022-08-18
    Description:
-    This file contains the declaration of the ToPluginInterface class
+    This file contains the declaration of the RegisterPluginEvent.
 */
 
-#ifndef TO_PLUGIN_INTERFACE_H
-#define TO_PLUGIN_INTERFACE_H
+#ifndef IRTRANS_PLUGIN_H
+#define IRTRANS_PLUGIN_H
 
-#include <vector>
-#include "IR/Operation.h"
+#include "PluginClient/PluginClient.h"
 
-namespace Plugin_IR {
-using std::vector;
+int RegisterPluginEvent(PinClient::InjectPoint inject, const std::string& pluginName);
 
-/* The ToPluginInterface class defines the plugin interfaces that different
-   compilers need to implement. */
-class ToPluginInterface {
-public:
-    /* Operation. */
-    virtual vector<Operation> GetAllFunction() = 0;
-    /* Decl. */
-    virtual Decl GetDeclByID(uintptr_t id) = 0;
-    /* Type. */
-    virtual Type GetTypeByID(uintptr_t id) = 0;
-};
-} // namespace Plugin_IR
-
-#endif // TO_PLUGIN_INTERFACE_H
+#endif
