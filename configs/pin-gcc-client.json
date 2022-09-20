@@ -1,0 +1,10 @@
+{
+    //server路径
+    "path" : "/usr/local/bin/pin_server",
+
+    //libuser.so sha256文件名
+    "sha256file" : "/usr/local/lib/libpin_user.sha256",
+    
+    //超时时间，单位ms
+    "timeout" : 200,
+}
