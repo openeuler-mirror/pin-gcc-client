@@ -38,12 +38,22 @@ using namespace PinClient;
 
 using std::vector;
 int plugin_is_GPL_compatible;
+static pid_t g_serverPid;
 
 /* gcc插件end事件回调函数 */
 static void GccEnd(void *gccData, void *userData)
 {
+    int status = 0;
+    std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
     LOGI("gcc optimize has been done! now close server...\n");
-    PluginClient::GetInstance()->ReceiveSendMsg("stop", "");
+    client->ReceiveSendMsg("stop", "");
+    if (client->GetUserFuncState() != STATE_TIMEOUT) {
+        waitpid(g_serverPid, &status, 0);
+    } else {
+        client->DeletePortFromLockFile(client->GetGrpcPort());
+    }
+
+    LOGI("client pid:%d quit\n", getpid());
 }
 
 /* gcc插件回调函数,当注册的plugin_event触发时,进入此函数 */
@@ -78,6 +88,7 @@ static void GccEventCallback(void *gccData, void *userData)
             }
         }
     }
+    LOGI("%s end!\n", __func__);
 }
 
 /* g_event作为userData传递给EventCallback */
@@ -102,6 +113,7 @@ int RegisterPluginEvent(InjectPoint inject, const string& pluginName)
     if (PluginClient::GetEvent(inject, &event) != 0) {
         return -1;
     }
+    LOGD("%s inject:%d,%s\n", __func__, inject, pluginName.c_str());
     register_callback(pluginName.c_str(), event, &GccEventCallback, (void *)&g_event[inject]);
     return 0;
 }
@@ -113,6 +125,7 @@ int plugin_init(struct plugin_name_args *pluginInfo, struct plugin_gcc_version *
         return 1;
     }
     string pluginName = pluginInfo->base_name;
+    register_callback(pluginName.c_str(), PLUGIN_FINISH, &GccEnd, NULL);
 
     int timeout = 200; // 默认超时时间200ms
     string shaPath;
@@ -136,19 +149,19 @@ int plugin_init(struct plugin_name_args *pluginInfo, struct plugin_gcc_version *
     }
 
     string port;
-    pid_t pid;
     int status;
-    if (ServerStart(timeout, serverPath, pid, port, logLevel) != 0) {
+    if (ServerStart(timeout, serverPath, g_serverPid, port, logLevel) != 0) {
         LOGE("start server fail\n");
         return 0;
     }
     ClientStart(timeout, arg, pluginName, port);
+    std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
     while (1) {
-        if (PluginClient::GetInstance()->GetInjectFlag()) {
-            register_callback(pluginName.c_str(), PLUGIN_FINISH, &GccEnd, NULL);
+        if ((client->GetInjectFlag()) || (client->GetUserFuncState() == STATE_TIMEOUT)) {
             break;
         }
-        if (pid == waitpid(-1, &status, WNOHANG)) {
+        if (g_serverPid == waitpid(-1, &status, WNOHANG)) {
+            PluginClient::DeletePortFromLockFile((unsigned short)atoi(port.c_str()));
             break;
         }
     }
