@@ -151,7 +151,7 @@ public:
     {
         grpcPort = port;
     }
-    unsigned GetGrpcPort(void)
+    unsigned short GetGrpcPort(void)
     {
         return grpcPort;
     }
@@ -169,6 +169,13 @@ public:
     }
     /* grpc消息处理函数 */
     void ServerMsgProc(const string& attribute, const string& value);
+    /* grpc的server被client拉起之前将port记录在/tmp/grpc_ports_pin_client.txt中, server和client建立通信后从文件中删除port，避免多进程时端口冲突
+       文件若不存在，先创建文件 */
+    static int OpenLockFile(const char *path);
+    /* 读取文件中保存的grpc端口号 */
+    static void ReadPortsFromLockFile(int fd, string& grpcPorts);
+    /* server启动异常或者grpc建立通信后,将文件中记录的端口号删除 */
+    static bool DeletePortFromLockFile(unsigned short port);
 
 private:
     std::unique_ptr<PluginService::Stub> serviceStub; // 保存grpc客户端stub对象

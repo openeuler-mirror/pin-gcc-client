@@ -26,6 +26,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/file.h>
+#include <unistd.h>
 #include <json/json.h>
 #include "IRTrans/IRTransPlugin.h"
 
@@ -33,6 +34,8 @@ namespace PinClient {
 using namespace Plugin_API;
 using std::ios;
 static std::shared_ptr<PluginClient> g_plugin = nullptr;
+const char *g_portFilePath = "/tmp/grpc_ports_pin_client.txt";
+static std::shared_ptr<Channel> g_grpcChannel = nullptr;
 
 std::map<InjectPoint, plugin_event> g_injectPoint {
     {HANDLE_PARSE_TYPE, PLUGIN_FINISH_TYPE},
@@ -212,7 +215,7 @@ int PluginClient::GetInitInfo(string& serverPath, string& shaPath, int& timeout)
     ifs.open(configFilePath.c_str());
     if (!ifs) {
         shaPath = serverDir + "/libpin_user.sha256"; // sha256文件默认和server在同一目录
-        LOGD("open %s fail! use default sha256file:%s\n", configFilePath.c_str(), shaPath.c_str());
+        LOGW("open %s fail! use default sha256file:%s\n", configFilePath.c_str(), shaPath.c_str());
         return -1;
     }
     reader.parse(ifs, root);
@@ -224,16 +227,18 @@ int PluginClient::GetInitInfo(string& serverPath, string& shaPath, int& timeout)
         serverDir = serverPath.substr(0, index);
     }
     int timeoutJson = root["timeout"].asInt();
-    if ((timeoutJson > 0) && (timeoutJson < 1000)) { // 不在0~1000ms范围内，使用默认值
+    if ((timeoutJson >= 50) && (timeoutJson <= 5000)) { // 不在50~5000ms范围内，使用默认值
         timeout = timeoutJson;
+        LOGI("the timeout is:%d\n", timeout);
     } else {
-        LOGW("timeout in config file should be 0~1000\n");
+        LOGW("timeout read from %s is:%d,should be 50~5000,use default:%d\n",
+            configFilePath.c_str(), timeoutJson, timeout);
     }
     shaPath = root["sha256file"].asString();
     int ret = access(shaPath.c_str(), F_OK);
     if ((shaPath == "") || (ret != 0)) {
         shaPath = serverDir + "/libpin_user.sha256"; // sha256文件默认和server在同一目录
-        LOGD("sha256 file not found,use default:%s\n", shaPath.c_str());
+        LOGW("sha256 file not found,use default:%s\n", shaPath.c_str());
     }
     return 0;
 }
@@ -268,7 +273,7 @@ int PluginClient::CheckSHA256(const string& shaPath)
     string dir = shaPath.substr(0, index);
     string filename = shaPath.substr(index+1, -1);
 
-    string cmd = "cd " + dir + " && " + "sha256sum -c " + filename;
+    string cmd = "cd " + dir + " && " + "sha256sum -c " + filename + " --quiet";
     int ret = system(cmd.c_str());
     return ret;
 }
@@ -295,42 +300,33 @@ void PluginClient::CheckSafeCompileFlag(const string& argName, const string& par
     }
 }
 
-void DeletePortInFile(unsigned short port)
+bool PluginClient::DeletePortFromLockFile(unsigned short port)
 {
-    mode_t mask = umask(0);
-    int fd = open("/tmp/file_lock_pin_client", O_CREAT | O_WRONLY, 0666);
-    umask(mask);
-    flock(fd, LOCK_EX);
-
-    std::ifstream ifs;
-    ifs.open("/tmp/gcc-client-port.txt");
-    if (!ifs.is_open()) {
-        LOGE("fs open fail\n");
-        flock(fd, LOCK_UN);
-        close(fd);
-        return;
+    int portFileFd = open(g_portFilePath, O_RDWR);
+    if (portFileFd == -1) {
+        LOGE("%s open file %s fail\n", __func__, g_portFilePath);
+        return false;
     }
-    std::stringstream buffer;
-    buffer << ifs.rdbuf();
-    ifs.close();
+    LOGI("delete port:%d\n", port);
 
-    string ports = buffer.str();
+    flock(portFileFd, LOCK_EX);
+    string grpcPorts = "";
+    ReadPortsFromLockFile(portFileFd, grpcPorts);
+
     string portStr = std::to_string(port) + "\n";
-    int pos = ports.find(portStr);
-    ports = ports.erase(pos, portStr.size());
-
-    std::ofstream ofs;
-    ofs.open("/tmp/gcc-client-port.txt", ios::trunc);
-    if (!ofs.is_open()) {
-        LOGE("fs open fail\n");
-        flock(fd, LOCK_UN);
-        close(fd);
-        return;
+    string::size_type pos = grpcPorts.find(portStr);
+    if (pos == string::npos) {
+        close(portFileFd);
+        return true;
     }
-    ofs << ports;
-    ofs.close();
-    flock(fd, LOCK_UN);
-    close(fd);
+    grpcPorts = grpcPorts.erase(pos, portStr.size());
+
+    ftruncate(portFileFd, 0);
+    lseek(portFileFd, 0, SEEK_SET);
+    write(portFileFd, grpcPorts.c_str(), grpcPorts.size());
+    close(portFileFd);
+
+    return true;
 }
 
 void PluginClient::ReceiveSendMsg(const string& attribute, const string& value)
@@ -344,14 +340,19 @@ void PluginClient::ReceiveSendMsg(const string& attribute, const string& value)
     stream->Write(clientMsg);
     stream->WritesDone();
     TimerStart(timeout);
-
+    if (g_grpcChannel->GetState(true) != GRPC_CHANNEL_READY) {
+        LOGW("client pid%d grpc channel not ready!\n", getpid());
+        return;
+    }
     ServerMsg serverMsg;
     while (stream->Read(&serverMsg)) {
         TimerStart(0);
         LOGD("rec from server:%s,%s\n", serverMsg.attribute().c_str(), serverMsg.value().c_str());
         if ((serverMsg.attribute() == "start") && (serverMsg.value() == "ok")) {
-            DeletePortInFile(GetGrpcPort());
             LOGI("server has been started!\n");
+            if (!DeletePortFromLockFile(GetGrpcPort())) {
+                LOGE("DeletePortFromLockFile fail\n");
+            }
         } else if ((serverMsg.attribute() == "stop") && (serverMsg.value() == "ok")) {
             LOGI("server has been closed!\n");
             Status status = stream->Finish();
@@ -407,16 +408,17 @@ void PluginClient::ServerMsgProc(const string& attribute, const string& value)
 
 void TimeoutFunc(union sigval sig)
 {
-    LOGW("client timeout!\n");
-    PluginClient::GetInstance()->SetUserFuncState(STATE_TIMEOUT);
+    LOGW("client pid:%d timeout!\n", getpid());
+    g_plugin->SetUserFuncState(STATE_TIMEOUT);
 }
 
 void PluginClient::TimerStart(int interval)
 {
-    int msTons = 1000000;
+    int msTons = 1000000; // ms转ns倍数
+    int msTos = 1000; // s转ms倍数
     struct itimerspec time_value;
-    time_value.it_value.tv_sec = 0;
-    time_value.it_value.tv_nsec = interval * msTons;
+    time_value.it_value.tv_sec = (interval / msTos);
+    time_value.it_value.tv_nsec = (interval % msTos) * msTons;
     time_value.it_interval.tv_sec = 0;
     time_value.it_interval.tv_nsec = 0;
     
@@ -438,35 +440,52 @@ void PluginClient::TimerInit(void)
     }
 }
 
+int PluginClient::OpenLockFile(const char *path)
+{
+    int portFileFd = -1;
+    if (access(path, F_OK) == -1) {
+        mode_t mask = umask(0);
+        mode_t mode = 0666;
+        portFileFd = open(path, O_CREAT | O_RDWR, mode);
+        umask(mask);
+    } else {
+        portFileFd = open(path, O_RDWR);
+    }
+
+    if (portFileFd == -1) {
+        LOGE("open file %s fail\n", path);
+    }
+    return portFileFd;
+}
+
+void PluginClient::ReadPortsFromLockFile(int fd, string& grpcPorts)
+{
+    int fileLen = lseek(fd, 0, SEEK_END);
+    lseek(fd, 0, SEEK_SET);
+    char *buf = new char[fileLen + 1];
+    read(fd, buf, fileLen);
+    buf[fileLen] = '\0';
+    grpcPorts = buf;
+    delete[] buf;
+}
+
 unsigned short PluginClient::FindUnusedPort(void)
 {
     unsigned short basePort = 40000; // grpc通信端口号从40000开始
-    unsigned short foundPort = 0;
+    unsigned short foundPort = 0; // 可以使用的端口号
     struct sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = inet_addr("0.0.0.0");
-    std::ifstream ifs;
-    std::ofstream ofs;
-    
-    mode_t mask = umask(0);
-    int fd = open("/tmp/file_lock_pin_client", O_CREAT | O_WRONLY, 0666);
-    ofs.open("/tmp/gcc-client-port.txt", ios::app);
-    umask(mask);
-    flock(fd, LOCK_EX);
-    ifs.open("/tmp/gcc-client-port.txt");
-    if (!ofs.is_open()) {
-        LOGE("ofs open /tmp/gcc-client-port.txt fail\n");
+
+    int portFileFd = OpenLockFile(g_portFilePath);
+    if (portFileFd == -1) {
         return 0;
     }
-    if (!ifs.is_open()) {
-        LOGE("ifs open /tmp/gcc-client-port.txt fail\n");
-        return 0;
-    }
-    std::stringstream buffer;
-    buffer << ifs.rdbuf();
-    string buf = buffer.str();
-    ifs.close();
+
+    flock(portFileFd, LOCK_EX);
+    string grpcPorts = "";
+    ReadPortsFromLockFile(portFileFd, grpcPorts);
 
     while (++basePort < UINT16_MAX) {
         int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -477,21 +496,22 @@ unsigned short PluginClient::FindUnusedPort(void)
         }
         if ((ret == -1) && (errno == ECONNREFUSED)) {
             string strPort = std::to_string(basePort) + "\n";
-            if (buf.find(strPort) == buf.npos) {
+            if (grpcPorts.find(strPort) == grpcPorts.npos) {
                 foundPort = basePort;
-                ofs << strPort;
+                LOGI("found port:%d\n", foundPort);
+                lseek(portFileFd, 0, SEEK_END);
+                write(portFileFd, strPort.c_str(), strPort.size());
                 break;
             }
         }
     }
-    ofs.close();
+
     if (basePort == UINT16_MAX) {
-        ofs.open("/tmp/gcc-client-port.txt", ios::trunc);
-        ofs.close();
+        ftruncate(portFileFd, 0);
+        lseek(portFileFd, 0, SEEK_SET);
     }
-    
-    flock(fd, LOCK_UN);
-    close(fd);
+
+    close(portFileFd); // 关闭文件fd会同时释放文件锁
     return foundPort;
 }
 
@@ -504,17 +524,18 @@ int ServerStart(int timeout, const string& serverPath, pid_t& pid, string& port,
     }
 
     port = std::to_string(portNum);
-    pid = fork();
+    pid = vfork();
     if (pid == 0) {
         LOGI("start plugin server!\n");
         string paramTimeout = std::to_string(timeout);
         if (execl(serverPath.c_str(), paramTimeout.c_str(), port.c_str(),
             std::to_string(logLevel).c_str(), NULL) == -1) {
+            PluginClient::DeletePortFromLockFile(portNum);
             LOGE("server start fail! serverPath:%s\n", serverPath.c_str());
             exit(0);
         }
     }
-    int delay = 100000; // 100ms
+    int delay = 500000; // 500ms
     usleep(delay); // wait server start
     return 0;
 }
@@ -522,8 +543,8 @@ int ServerStart(int timeout, const string& serverPath, pid_t& pid, string& port,
 int ClientStart(int timeout, const string& arg, const string& pluginName, const string& port)
 {
     string serverPort = "localhost:" + port;
-    g_plugin = std::make_shared<PluginClient>(
-        grpc::CreateChannel(serverPort, grpc::InsecureChannelCredentials()));
+    g_grpcChannel = grpc::CreateChannel(serverPort, grpc::InsecureChannelCredentials());
+    g_plugin = std::make_shared<PluginClient>(g_grpcChannel);
     g_plugin->SetInjectFlag(false);
     g_plugin->SetTimeout(timeout);
     g_plugin->SetUserFuncState(STATE_WAIT_BEGIN);
