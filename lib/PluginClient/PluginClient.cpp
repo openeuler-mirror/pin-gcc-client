@@ -49,6 +49,7 @@ std::map<InjectPoint, plugin_event> g_injectPoint {
     {HANDLE_BEFORE_ALL_PASS, PLUGIN_ALL_PASSES_START},
     {HANDLE_AFTER_ALL_PASS, PLUGIN_ALL_PASSES_END},
     {HANDLE_COMPILE_END, PLUGIN_FINISH},
+    {HANDLE_MANAGER_SETUP, PLUGIN_PASS_MANAGER_SETUP},
 };
 
 std::shared_ptr<PluginClient> PluginClient::GetInstance(void)
@@ -341,13 +342,15 @@ void PluginClient::ReceiveSendMsg(const string& attribute, const string& value)
     stream->WritesDone();
     TimerStart(timeout);
     if (g_grpcChannel->GetState(true) != GRPC_CHANNEL_READY) {
-        LOGW("client pid%d grpc channel not ready!\n", getpid());
+        LOGW("client pid:%d grpc channel not ready!\n", getpid());
         return;
     }
     ServerMsg serverMsg;
     while (stream->Read(&serverMsg)) {
         TimerStart(0);
-        LOGD("rec from server:%s,%s\n", serverMsg.attribute().c_str(), serverMsg.value().c_str());
+        if (serverMsg.attribute() != "injectPoint") { // 日志不记录注册的函数名信息
+            LOGD("rec from server:%s,%s\n", serverMsg.attribute().c_str(), serverMsg.value().c_str());
+        }
         if ((serverMsg.attribute() == "start") && (serverMsg.value() == "ok")) {
             LOGI("server has been started!\n");
             if (!DeletePortFromLockFile(GetGrpcPort())) {
@@ -383,6 +386,19 @@ int PluginClient::AddRegisteredUserFunc(const string& value)
     return 0;
 }
 
+ManagerSetupData GetPassInfoData(const string& data)
+{
+    ManagerSetupData setupData;
+    Json::Value root;
+    Json::Reader reader;
+    reader.parse(data, root);
+    
+    setupData.refPassName = (RefPassName)root["refPassName"].asInt();
+    setupData.passNum = root["passNum"].asInt();
+    setupData.passPosition = (PassPosition)root["passPosition"].asInt();
+    return setupData;
+}
+
 void PluginClient::ServerMsgProc(const string& attribute, const string& value)
 {
     std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
@@ -393,7 +409,13 @@ void PluginClient::ServerMsgProc(const string& attribute, const string& value)
             map<InjectPoint, vector<string>> userFuncs = client->GetRegisteredUserFunc();
             for (auto it = userFuncs.begin(); it != userFuncs.end(); it++) {
                 inject = it->first;
-                RegisterPluginEvent(inject, pluginName); // 注册event
+                if (inject == HANDLE_MANAGER_SETUP) {
+                    string data = it->second.front();
+                    ManagerSetupData setupData = GetPassInfoData(data);
+                    RegisterPassManagerSetup(inject, setupData, pluginName);
+                } else {
+                    RegisterPluginEvent(inject, pluginName); // 注册event
+                }
             }
             client->SetInjectFlag(true);
         } else {
@@ -532,7 +554,7 @@ int ServerStart(int timeout, const string& serverPath, pid_t& pid, string& port,
             std::to_string(logLevel).c_str(), NULL) == -1) {
             PluginClient::DeletePortFromLockFile(portNum);
             LOGE("server start fail! serverPath:%s\n", serverPath.c_str());
-            exit(0);
+            _exit(0);
         }
     }
     int delay = 500000; // 500ms

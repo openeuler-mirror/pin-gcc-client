@@ -24,7 +24,10 @@
 #define IRTRANS_PLUGIN_H
 
 #include "PluginClient/PluginClient.h"
+#include "tree-pass.h"
+#include "tree.h"
 
 int RegisterPluginEvent(PinClient::InjectPoint inject, const std::string& pluginName);
-
+int RegisterPassManagerSetup(PinClient::InjectPoint inject, const PinClient::ManagerSetupData& setupData,
+    const std::string& pluginName);
 #endif

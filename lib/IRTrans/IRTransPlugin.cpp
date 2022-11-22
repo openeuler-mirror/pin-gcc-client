@@ -27,12 +27,9 @@
 #include <json/json.h>
 #include "PluginClient/PluginClient.h"
 #include "plugin-version.h"
-#include "PluginAPI/PluginAPI_Client.h"
-#include "tree-pass.h"
-#include "tree.h"
 #include "IRTrans/IRTransPlugin.h"
+#include "context.h"
 
-using namespace std;
 using namespace Plugin_API;
 using namespace PinClient;
 
@@ -45,6 +42,9 @@ static void GccEnd(void *gccData, void *userData)
 {
     int status = 0;
     std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
+    if (client == nullptr) {
+        return;
+    }
     LOGI("gcc optimize has been done! now close server...\n");
     client->ReceiveSendMsg("stop", "");
     if (client->GetUserFuncState() != STATE_TIMEOUT) {
@@ -104,6 +104,7 @@ static InjectPoint g_event[] = {
     HANDLE_BEFORE_ALL_PASS,
     HANDLE_AFTER_ALL_PASS,
     HANDLE_COMPILE_END,
+    HANDLE_MANAGER_SETUP,
     HANDLE_MAX
 };
 
@@ -118,9 +119,135 @@ int RegisterPluginEvent(InjectPoint inject, const string& pluginName)
     return 0;
 }
 
+void ManagerSetupCallback(void)
+{
+    string key = "injectPoint";
+    InjectPoint inject = HANDLE_MANAGER_SETUP;
+    std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
+    vector<string> userFuncs = client->GetFuncNameByInject(inject);
+    for (auto &userFunc : userFuncs) {
+        string value = std::to_string(inject) + ":" + userFunc;
+        client->ReceiveSendMsg(key, value);
+    }
+}
+
+struct RltPass: rtl_opt_pass {
+public:
+    RltPass(pass_data passData): rtl_opt_pass(passData, g)
+    {
+    }
+    unsigned int execute(function *fun) override
+    {
+        ManagerSetupCallback();
+        return 0;
+    }
+    RltPass* clone() override
+    {
+        return this;
+    }
+};
+
+struct SimpleIPAPass: simple_ipa_opt_pass {
+public:
+    SimpleIPAPass(pass_data passData): simple_ipa_opt_pass(passData, g)
+    {
+    }
+    unsigned int execute(function *fun) override
+    {
+        ManagerSetupCallback();
+        return 0;
+    }
+    SimpleIPAPass* clone() override
+    {
+        return this;
+    }
+};
+
+struct GimplePass: gimple_opt_pass {
+public:
+    GimplePass(pass_data passData): gimple_opt_pass(passData, g)
+    {
+    }
+    unsigned int execute(function *fun) override
+    {
+        ManagerSetupCallback();
+        return 0;
+    }
+    GimplePass* clone() override
+    {
+        return this;
+    }
+};
+
+static std::map<RefPassName, string> g_refPassName {
+    {PASS_CFG, "cfg"},
+    {PASS_SSA, "ssa"},
+    {PASS_LOOP, "loop"},
+};
+
+int RegisterPassManagerSetup(InjectPoint inject, const ManagerSetupData& setupData, const string& pluginName)
+{
+    if (inject != HANDLE_MANAGER_SETUP) {
+        return -1;
+    }
+
+    struct register_pass_info passInfo;
+    pass_data passData = {
+        .type = GIMPLE_PASS,
+        .name = "managerSetupPass",
+        .optinfo_flags = OPTGROUP_NONE,
+        .tv_id = TV_NONE,
+        .properties_required = 0,
+        .properties_provided = 0,
+        .properties_destroyed = 0,
+        .todo_flags_start = 0,
+        .todo_flags_finish = 0,
+    };
+
+    passInfo.reference_pass_name = g_refPassName[setupData.refPassName].c_str();
+    passInfo.ref_pass_instance_number = setupData.passNum;
+    passInfo.pos_op = (pass_positioning_ops)setupData.passPosition;
+    switch (setupData.refPassName) {
+        case PASS_CFG:
+            passData.type = GIMPLE_PASS;
+            passInfo.pass = new GimplePass(passData);
+            break;
+        case PASS_SSA:
+            passData.type = RTL_PASS;
+            passInfo.pass = new RltPass(passData);
+            break;
+        case PASS_LOOP:
+            passData.type = SIMPLE_IPA_PASS;
+            passInfo.pass = new SimpleIPAPass(passData);
+            break;
+        default:
+            passInfo.pass = new GimplePass(passData);
+            break;
+    }
+    
+    register_callback(pluginName.c_str(), PLUGIN_PASS_MANAGER_SETUP, NULL, &passInfo);
+    return 0;
+}
+
+static bool PluginVersionCheck(struct plugin_gcc_version *gccVersion, struct plugin_gcc_version *pluginVersion)
+{
+    if (!gccVersion || !pluginVersion) {
+        return false;
+    }
+
+    string gccVer = gccVersion->basever;
+    string pluginVer = pluginVersion->basever;
+    string gccVerMajor = gccVer.substr(0, gccVer.find_first_of(".", gccVer.find_first_of(".") + 1));
+    string pluginVerMajor = pluginVer.substr(0, pluginVer.find_first_of(".", pluginVer.find_first_of(".") + 1));
+    if (gccVerMajor != pluginVerMajor) {
+        return false;
+    }
+    return true;
+}
+
 int plugin_init(struct plugin_name_args *pluginInfo, struct plugin_gcc_version *version)
 {
-    if (!plugin_default_version_check(version, &gcc_version)) {
+    if (!PluginVersionCheck(version, &gcc_version)) {
         LOGE("incompatible gcc/plugin versions\n");
         return 1;
     }
