@@ -65,6 +65,7 @@ enum InjectPoint : uint8_t {
     HANDLE_BEFORE_ALL_PASS,
     HANDLE_AFTER_ALL_PASS,
     HANDLE_COMPILE_END,
+    HANDLE_MANAGER_SETUP,
     HANDLE_MAX,
 };
 typedef enum {
@@ -75,6 +76,25 @@ typedef enum {
     STATE_END, // 用户当前函数已执行完毕
     STATE_TIMEOUT, // server进程异常,接收不到server数据，超时
 } UserFuncStateEnum;
+
+// 参考点名称
+enum RefPassName {
+    PASS_CFG,
+    PASS_SSA,
+    PASS_LOOP,
+};
+
+enum PassPosition {
+    PASS_INSERT_AFTER,
+    PASS_INSERT_BEFORE,
+    PASS_REPLACE,
+};
+
+struct ManagerSetupData {
+    RefPassName refPassName;
+    int passNum; // 指定passName的第几次执行作为参考点
+    PassPosition passPosition; // 指定pass是添加在参考点之前还是之后
+};
 
 class PluginClient {
 public:

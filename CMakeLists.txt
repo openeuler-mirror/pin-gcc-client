@@ -13,7 +13,7 @@ execute_process(COMMAND gcc -print-file-name=plugin
                 ERROR_STRIP_TRAILING_WHITESPACE)
 include_directories(${output_var}/include)
 include_directories(include)
-add_compile_options(-std=c++11 -Wall -fPIC)
+add_compile_options(-std=c++11 -Wall -fPIC -fno-rtti)
 
 # Proto file
 get_filename_component(plg_proto "protos/plugin.proto" ABSOLUTE)
