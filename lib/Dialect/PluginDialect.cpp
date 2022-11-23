@@ -24,6 +24,7 @@
 
 #include "Dialect/PluginDialect.h"
 #include "Dialect/PluginOps.h"
+#include "Dialect/PluginTypes.h"
 
 using namespace mlir;
 using namespace mlir::Plugin;
@@ -33,6 +34,12 @@ using namespace mlir::Plugin;
 //===----------------------------------------------------------------------===//
 
 void PluginDialect::initialize() {
+  addTypes<PluginIR::PluginIntegerType,
+           PluginIR::PluginFloatType,
+           PluginIR::PluginBooleanType,
+           PluginIR::PluginVoidType,
+           PluginIR::PluginUndefType>();
+
   addOperations<
 #define GET_OP_LIST
 #include "Dialect/PluginOps.cpp.inc"

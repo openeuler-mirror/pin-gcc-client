@@ -20,6 +20,7 @@
     This file contains the implementation of the PluginClient class..
 */
 #include "Dialect/PluginDialect.h"
+#include "Dialect/PluginTypes.h"
 #include "PluginAPI/PluginClientAPI.h"
 #include "IRTrans/IRTransPlugin.h"
 
@@ -34,6 +35,7 @@
 
 namespace PinClient {
 using namespace mlir::Plugin;
+using namespace mlir;
 using std::ios;
 static std::shared_ptr<PluginClient> g_plugin = nullptr;
 const char *g_portFilePath = "/tmp/grpc_ports_pin_client.txt";
@@ -67,6 +69,41 @@ int PluginClient::GetEvent(InjectPoint inject, plugin_event *event)
         return 0;
     }
     return -1;
+}
+
+void PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type, string& out)
+{
+    Json::Value root;
+    Json::Value operationObj;
+    Json::Value item;
+
+    uint64_t ReTypeId;
+    uint64_t ReTypeWidth;
+
+    ReTypeId = static_cast<uint64_t>(type.getPluginTypeID());
+    item["id"] = std::to_string(ReTypeId);
+
+    if (type.getPluginIntOrFloatBitWidth() != 0) {
+        ReTypeWidth = type.getPluginIntOrFloatBitWidth();
+        item["width"] = std::to_string(ReTypeWidth);
+    }
+
+    if (type.isSignedPluginInteger()) {
+        item["signed"] = "1";
+    }
+
+    if (type.isUnsignedPluginInteger()) {
+        item["signed"] = "0";
+    }
+
+    if (type.getReadOnlyFlag() == 1) {
+        item["readonly"] = "1";
+    }else {
+        item["readonly"] = "0";
+    }
+
+    root["type"] = item;
+    out = root.toStyledString();
 }
 
 void PluginClient::OpJsonSerialize(vector<FunctionOp>& data, string& out)
