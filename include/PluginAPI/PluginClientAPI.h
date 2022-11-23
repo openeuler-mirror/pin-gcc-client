@@ -14,35 +14,30 @@
    along with this program; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.
 
-   Author: Mingchuan Wu and Yancheng Li
-   Create: 2022-08-18
-   Description:
-    This file contains the declaration of the PluginAPI_Client class.
 */
 
-#ifndef PLUGIN_FRAMEWORK_API_H
-#define PLUGIN_FRAMEWORK_API_H
+#ifndef PLUGIN_OPS_CLIENT_API_H
+#define PLUGIN_OPS_CLIENT_API_H
 
-#include "BasicPluginAPI.h"
-#include "Conversion/GimpleToPlugin.h"
+#include "BasicPluginOpsAPI.h"
+#include "Translate/GimpleToPluginOps.h"
 
-namespace Plugin_API {
-using namespace Plugin_IR;
+namespace PluginAPI {
 using std::vector;
 using std::string;
+using namespace mlir::Plugin;
 
-class PluginAPI_Client : public BasicPluginAPI {
+class PluginClientAPI : public BasicPluginOpsAPI {
 public:
-    PluginAPI_Client () = default;
-    ~PluginAPI_Client () = default;
+    PluginClientAPI (mlir::MLIRContext &context) : gimpleConversion(context) {};
+    PluginClientAPI () = default;
+    ~PluginClientAPI () = default;
 
-    vector<Operation> SelectOperation(Opcode op, string attribute) override;
-    vector<Operation> GetAllFunc(string attribute) override;
-    Decl SelectDeclByID(uintptr_t id) override;
+    vector<FunctionOp> GetAllFunc() override;
 
 private:
-    GimpleToPlugin irTrans;
-}; // class PluginAPI_Client
-} // namespace Plugin_API
+    PluginIR::GimpleToPluginOps gimpleConversion;
+}; // class PluginClientAPI
+} // namespace PluginAPI
 
-#endif // PLUGIN_FRAMEWORK_API_H
+#endif // PLUGIN_OPS_CLIENT_API_H

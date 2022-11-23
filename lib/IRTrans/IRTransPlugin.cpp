@@ -29,8 +29,9 @@
 #include "plugin-version.h"
 #include "IRTrans/IRTransPlugin.h"
 #include "context.h"
+#include "tree-pass.h"
+#include "tree.h"
 
-using namespace Plugin_API;
 using namespace PinClient;
 
 using std::vector;
@@ -247,10 +248,6 @@ static bool PluginVersionCheck(struct plugin_gcc_version *gccVersion, struct plu
 
 int plugin_init(struct plugin_name_args *pluginInfo, struct plugin_gcc_version *version)
 {
-    if (!PluginVersionCheck(version, &gcc_version)) {
-        LOGE("incompatible gcc/plugin versions\n");
-        return 1;
-    }
     string pluginName = pluginInfo->base_name;
     register_callback(pluginName.c_str(), PLUGIN_FINISH, &GccEnd, NULL);
 

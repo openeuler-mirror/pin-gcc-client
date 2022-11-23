@@ -1,4 +1,0 @@
-/* Definition of opcode */
-
-DEF_CODE(VAR, Decl)
-

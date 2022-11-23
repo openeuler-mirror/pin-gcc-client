@@ -20,21 +20,32 @@
     This file contains the declaration of the GimpleToPlugin class.
 */
 
-#ifndef GIMPLE_TO_PLUGIN_H
-#define GIMPLE_TO_PLUGIN_H
+#ifndef GIMPLE_TO_PLUGINOPS_H
+#define GIMPLE_TO_PLUGINOPS_H
 
-#include "Conversion/ToPluginInterface.h"
+#include "Translate/ToPluginOpsInterface.h"
 
-namespace Plugin_IR {
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/MLIRContext.h"
+
+namespace PluginIR {
 using std::vector;
 
-class GimpleToPlugin : public ToPluginInterface {
+class GimpleToPluginOps : public ToPluginOpsInterface {
 public:
-    /* ToPluginInterface */
-    vector<Operation> GetAllFunction() override;
-    Decl GetDeclByID(uintptr_t id) override;
-    Type GetTypeByID(uintptr_t id) override;
-};
-} // namespace Plugin_IR
+    GimpleToPluginOps (mlir::MLIRContext &context) : builder(&context) {}
+    GimpleToPluginOps () = default;
+    ~GimpleToPluginOps () = default;
 
-#endif // GIMPLE_TO_PLUGIN_H
+    /* ToPluginInterface */
+    vector<mlir::Plugin::FunctionOp> GetAllFunction() override;
+
+private:
+    mlir::OpBuilder builder;
+};
+} // namespace PluginIR
+
+#endif // GIMPLE_TO_PLUGINOPS_H

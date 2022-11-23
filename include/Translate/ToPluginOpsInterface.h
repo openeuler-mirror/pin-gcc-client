@@ -17,34 +17,26 @@
    Author: Mingchuan Wu and Yancheng Li
    Create: 2022-08-18
    Description:
-    This file contains the declaration of the BasicPluginAPI class.
+    This file contains the declaration of the ToPluginInterface class
 */
 
-#ifndef BASIC_PLUGIN_FRAMEWORK_API_H
-#define BASIC_PLUGIN_FRAMEWORK_API_H
+#ifndef TO_PLUGINOPS_INTERFACE_H
+#define TO_PLUGINOPS_INTERFACE_H
 
 #include <vector>
-#include <string>
-#include "IR/Operation.h"
-#include "IR/Decl.h"
+#include "Dialect/PluginOps.h"
 
-namespace Plugin_API {
-using namespace Plugin_IR;
+namespace PluginIR {
 using std::vector;
-using std::string;
+using namespace mlir::Plugin;
 
-/* The BasicPluginAPI class defines the basic plugin API, both the plugin
-   client and the server should inherit this class and implement there own
-   defined API. */
-class BasicPluginAPI {
+/* The ToPluginInterface class defines the plugin interfaces that different
+   compilers need to implement. */
+class ToPluginOpsInterface {
 public:
-    BasicPluginAPI() = default;
-    virtual ~BasicPluginAPI() = default;
+    /* Operation. */
+    virtual vector<FunctionOp> GetAllFunction() = 0;
+};
+} // namespace PluginIR
 
-    virtual vector<Operation> SelectOperation(Opcode op, string attribute) = 0;
-    virtual vector<Operation> GetAllFunc(string attribute) = 0;
-    virtual Decl SelectDeclByID(uintptr_t id) = 0;
-}; // class BasicPluginAPI
-} // namespace Plugin_API
-
-#endif // PLUGIN_FRAMEWORK_API_H
+#endif // TO_PLUGINOPS_INTERFACE_H

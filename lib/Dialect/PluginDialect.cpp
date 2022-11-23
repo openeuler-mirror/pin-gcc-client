@@ -14,18 +14,27 @@
    along with this program; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.
 
-   Author: Mingchuan Wu and Yancheng Li
-   Create: 2022-08-18
-   Description:
-    This file contains the declaration of the RegisterPluginEvent.
+
 */
+//===----------------------------------------------------------------------===//
+//
+// This file defines Plugin dialect.
+//
+//===----------------------------------------------------------------------===//
 
-#ifndef IRTRANS_PLUGIN_H
-#define IRTRANS_PLUGIN_H
+#include "Dialect/PluginDialect.h"
+#include "Dialect/PluginOps.h"
 
-#include "PluginClient/PluginClient.h"
+using namespace mlir;
+using namespace mlir::Plugin;
 
-int RegisterPluginEvent(PinClient::InjectPoint inject, const std::string& pluginName);
-int RegisterPassManagerSetup(PinClient::InjectPoint inject, const PinClient::ManagerSetupData& setupData,
-    const std::string& pluginName);
-#endif
+//===----------------------------------------------------------------------===//
+// Plugin dialect.
+//===----------------------------------------------------------------------===//
+
+void PluginDialect::initialize() {
+  addOperations<
+#define GET_OP_LIST
+#include "Dialect/PluginOps.cpp.inc"
+      >();
+}

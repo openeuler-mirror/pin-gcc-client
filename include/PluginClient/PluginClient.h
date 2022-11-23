@@ -29,10 +29,11 @@
 #include <time.h>
 #include <signal.h>
 
+#include "Dialect/PluginOps.h"
 #include <grpcpp/grpcpp.h>
 #include "plugin.grpc.pb.h"
 #include "gcc-plugin.h"
-#include "PluginAPI/PluginAPI_Client.h"
+#include "PluginAPI/PluginClientAPI.h"
 #include "PluginClient/PluginLog.h"
 
 namespace PinClient {
@@ -49,9 +50,6 @@ using grpc::Status;
 
 using plugin::ClientMsg;
 using plugin::ServerMsg;
-using Plugin_API::Operation;
-using Plugin_API::Decl;
-using Plugin_API::Type;
 
 enum InjectPoint : uint8_t {
     HANDLE_PARSE_TYPE = 0,
@@ -105,12 +103,7 @@ public:
     void ReceiveSendMsg(const string& attribute, const string& value);
     /* 获取client对象实例,有且只有一个实例对象 */
     static std::shared_ptr<PluginClient> GetInstance(void);
-    /* 将Operation类型数据序列化 */
-    void OperationJsonSerialize(vector<Operation>& data, string& out);
-    /* 将Decl类型数据序列化 */
-    void DeclJsonSerialize(Decl& decl, string& out);
-    /* 将Type类型数据序列化 */
-    void TypeJsonSerialize(Type& data, string& out);
+    void OpJsonSerialize(vector<mlir::Plugin::FunctionOp>& data, string& out);
     /* 获取gcc插件数据并进行IR转换，将转换后的数据序列化返回给server。param：函数入参序列化后的数据 */
     void IRTransBegin(const string& funname, const string& param);
     /* 从配置文件读取初始化信息 */

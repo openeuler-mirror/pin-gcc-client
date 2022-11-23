@@ -17,15 +17,32 @@
    Author: Mingchuan Wu and Yancheng Li
    Create: 2022-08-18
    Description:
-    This file contains the declaration of the RegisterPluginEvent.
+    This file contains the declaration of the BasicPluginAPI class.
 */
 
-#ifndef IRTRANS_PLUGIN_H
-#define IRTRANS_PLUGIN_H
+#ifndef BASIC_PLUGIN_OPS_API_H
+#define BASIC_PLUGIN_OPS_API_H
 
-#include "PluginClient/PluginClient.h"
+#include "Dialect/PluginOps.h"
 
-int RegisterPluginEvent(PinClient::InjectPoint inject, const std::string& pluginName);
-int RegisterPassManagerSetup(PinClient::InjectPoint inject, const PinClient::ManagerSetupData& setupData,
-    const std::string& pluginName);
-#endif
+#include <vector>
+#include <string>
+
+namespace PluginAPI {
+using std::vector;
+using std::string;
+using namespace mlir::Plugin;
+
+/* The BasicPluginAPI class defines the basic plugin API, both the plugin
+   client and the server should inherit this class and implement there own
+   defined API. */
+class BasicPluginOpsAPI {
+public:
+    BasicPluginOpsAPI() = default;
+    virtual ~BasicPluginOpsAPI() = default;
+
+    virtual vector<FunctionOp> GetAllFunc() = 0;
+}; // class BasicPluginOpsAPI
+} // namespace PluginAPI
+
+#endif // BASIC_PLUGIN_OPS_API_H
