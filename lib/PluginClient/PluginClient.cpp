@@ -19,6 +19,9 @@
    Description:
     This file contains the implementation of the PluginClient class..
 */
+#include "Dialect/PluginDialect.h"
+#include "PluginAPI/PluginClientAPI.h"
+#include "IRTrans/IRTransPlugin.h"
 
 #include <thread>
 #include <fstream>
@@ -28,10 +31,9 @@
 #include <sys/file.h>
 #include <unistd.h>
 #include <json/json.h>
-#include "IRTrans/IRTransPlugin.h"
 
 namespace PinClient {
-using namespace Plugin_API;
+using namespace mlir::Plugin;
 using std::ios;
 static std::shared_ptr<PluginClient> g_plugin = nullptr;
 const char *g_portFilePath = "/tmp/grpc_ports_pin_client.txt";
@@ -67,7 +69,7 @@ int PluginClient::GetEvent(InjectPoint inject, plugin_event *event)
     return -1;
 }
 
-void PluginClient::OperationJsonSerialize(vector<Operation>& data, string& out)
+void PluginClient::OpJsonSerialize(vector<FunctionOp>& data, string& out)
 {
     Json::Value root;
     Json::Value operationObj;
@@ -77,41 +79,13 @@ void PluginClient::OperationJsonSerialize(vector<Operation>& data, string& out)
     string operation;
     
     for (auto& d: data) {
-        item["id"] = std::to_string(d.GetID());
-        item["opCode"] = d.GetOpcode();
-        for (map<string, string>::reverse_iterator iter = d.GetAttributes().rbegin();
-            iter != d.GetAttributes().rend(); iter++) {
-            item["attributes"][iter->first] = iter->second;
-        }
-
-        item["resultType"]["id"] = std::to_string(d.GetResultTypes().GetID());
-        item["resultType"]["typeCode"] = d.GetResultTypes().GetTypeCode();
-        item["resultType"]["tQual"] = d.GetResultTypes().GetTQual();
-        for (map<string, string>::reverse_iterator result = d.GetResultTypes().GetAttributes().rbegin();
-            result != d.GetResultTypes().GetAttributes().rend(); result++) {
-            item["resultType"]["attributes"][result->first] = result->second;
-        }
-
-        Decl decl;
-        for (map<string, Decl>::reverse_iterator operand = d.GetOperands().rbegin();
-            operand != d.GetOperands().rend(); operand++) {
-            decl = operand->second;
-            item["operands"][operand->first]["id"] = std::to_string(decl.GetID());
-            item["operands"][operand->first]["declCode"] = decl.GetDeclCode();
-            for (map<string, string>::reverse_iterator att = decl.GetAttributes().rbegin();
-                att != decl.GetAttributes().rend(); att++) {
-                item["operands"][operand->first]["attributes"][att->first] = att->second;
-            }
-
-            item["operands"][operand->first]["declType"]["id"] = std::to_string(decl.GetType().GetID());
-            item["operands"][operand->first]["declType"]["typeCode"] = decl.GetType().GetTypeCode();
-            item["operands"][operand->first]["declType"]["tQual"] = decl.GetType().GetTQual();
-            for (map<string, string>::reverse_iterator decls = decl.GetType().GetAttributes().rbegin();
-                decls != decl.GetType().GetAttributes().rend(); decls++) {
-                item["operands"][operand->first]["declType"]["attributes"][decls->first] = decls->second;
-            }
-        }
-
+        item["id"] = std::to_string(d.idAttr().getInt());
+        // item["opCode"] = OP_FUNCTION;
+        if (d.declaredInlineAttr().getValue())
+            item["attributes"]["declaredInline"] = "1";
+        else
+            item["attributes"]["declaredInline"] = "0";
+        item["attributes"]["funcName"] = d.funcNameAttr().getValue().data();
         operation = "operation" + std::to_string(i++);
         root[operation] = item;
         item.clear();
@@ -119,50 +93,8 @@ void PluginClient::OperationJsonSerialize(vector<Operation>& data, string& out)
     out = root.toStyledString();
 }
 
-void PluginClient::DeclJsonSerialize(Decl& decl, string& out)
-{
-    Json::Value root;
-    Json::Value operationObj;
-    Json::Value item;
-
-    item["id"] = std::to_string(decl.GetID());
-    item["declCode"] = decl.GetDeclCode();
-    for (map<string, string>::reverse_iterator declAtt = decl.GetAttributes().rbegin();
-        declAtt != decl.GetAttributes().rend(); declAtt++) {
-        item["attributes"][declAtt->first] = declAtt->second;
-    }
-
-    item["declType"]["id"] = std::to_string(decl.GetType().GetID());
-    item["declType"]["typeCode"] = decl.GetType().GetTypeCode();
-    item["declType"]["tQual"] = decl.GetType().GetTQual();
-    map<string, string> tmp = decl.GetType().GetAttributes();
-    for (map<string, string>::reverse_iterator typeAtt = tmp.rbegin(); typeAtt != tmp.rend(); typeAtt++) {
-        item["declType"]["attributes"][typeAtt->first] = typeAtt->second;
-    }
-    root["decl"] = item;
-    out = root.toStyledString();
-}
-
-void PluginClient::TypeJsonSerialize(Type& type, string& out)
-{
-    Json::Value root;
-    Json::Value operationObj;
-    Json::Value item;
-
-    item["id"] = std::to_string(type.GetID());
-    item["typeCode"] = type.GetTypeCode();
-    item["tQual"] = type.GetTQual();
-    map<string, string> tmp = type.GetAttributes();
-    for (map<string, string>::reverse_iterator typeAtt = tmp.rbegin(); typeAtt != tmp.rend(); typeAtt++) {
-        item["attributes"][typeAtt->first] = typeAtt->second;
-    }
-    root["type"] = item;
-    out = root.toStyledString();
-}
-
 void PluginClient::IRTransBegin(const string& funcName, const string& param)
 {
-    PluginAPI_Client pluginAPI;
     string result;
     
     Json::Value root;
@@ -170,23 +102,14 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
     reader.parse(param, root);
     LOGD("%s func:%s,param:%s\n", __func__, funcName.c_str(), param.c_str());
 
-    if (funcName == "SelectOperation") {
-        int op = root["Opcode"].asInt();
-        string attribute = root["string"].asString();
-        vector<Operation> operations = pluginAPI.SelectOperation((Opcode)op, attribute);
-        OperationJsonSerialize(operations, result);
-        this->ReceiveSendMsg("OperationResult", result);
-    } else if (funcName == "GetAllFunc") {
-        string attribute = root["string"].asString();
-        vector<Operation> operations = pluginAPI.GetAllFunc(attribute);
-        OperationJsonSerialize(operations, result);
-        this->ReceiveSendMsg("OperationResult", result);
-    } else if (funcName == "SelectDeclByID") {
-        string attribute = root["uintptr_t"].asString();
-        uintptr_t id = atol(attribute.c_str());
-        Decl decl = pluginAPI.SelectDeclByID(id);
-        DeclJsonSerialize(decl, result);
-        this->ReceiveSendMsg("DeclResult", result);
+    if (funcName == "GetAllFunc") {
+        // Load our Dialect in this MLIR Context.
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        vector<FunctionOp> allFuncOps = clientAPI.GetAllFunc();
+        OpJsonSerialize(allFuncOps, result);
+        this->ReceiveSendMsg("FuncOpResult", result);
     } else {
         LOGW("function: %s not found!\n", funcName.c_str());
     }

@@ -1,0 +1,7 @@
+# Add for the dialect operations. arg:(dialect dialect_namespace)
+file(COPY /usr/bin/mlir-tblgen DESTINATION ./)
+add_mlir_dialect(PluginOps Plugin)
+
+# Necessary to generate documentation. arg:(doc_filename command output_file output_directory)
+add_mlir_doc(PluginDialect -gen-dialect-doc PluginDialect Plugin/)
+add_mlir_doc(PluginOps -gen-op-doc PluginOps Plugin/)

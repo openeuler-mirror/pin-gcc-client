@@ -14,32 +14,13 @@
    along with this program; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.
 
-   Author: Mingchuan Wu and Yancheng Li
-   Create: 2022-08-18
-   Description:
-    This file contains the declaration of the ToPluginInterface class
 */
 
-#ifndef TO_PLUGIN_INTERFACE_H
-#define TO_PLUGIN_INTERFACE_H
+#include "PluginAPI/PluginClientAPI.h"
 
-#include <vector>
-#include "IR/Operation.h"
-
-namespace Plugin_IR {
-using std::vector;
-
-/* The ToPluginInterface class defines the plugin interfaces that different
-   compilers need to implement. */
-class ToPluginInterface {
-public:
-    /* Operation. */
-    virtual vector<Operation> GetAllFunction() = 0;
-    /* Decl. */
-    virtual Decl GetDeclByID(uintptr_t id) = 0;
-    /* Type. */
-    virtual Type GetTypeByID(uintptr_t id) = 0;
-};
-} // namespace Plugin_IR
-
-#endif // TO_PLUGIN_INTERFACE_H
+namespace PluginAPI {
+vector<FunctionOp> PluginClientAPI::GetAllFunc()
+{
+    return gimpleConversion.GetAllFunction();
+}
+} // namespace PluginAPI
