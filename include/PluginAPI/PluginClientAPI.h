@@ -34,6 +34,7 @@ public:
     ~PluginClientAPI () = default;
 
     vector<FunctionOp> GetAllFunc() override;
+    vector<LocalDeclOp> GetDecls(uint64_t funcID) override;
 
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;

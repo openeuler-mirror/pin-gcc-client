@@ -130,6 +130,26 @@ void PluginClient::OpJsonSerialize(vector<FunctionOp>& data, string& out)
     out = root.toStyledString();
 }
 
+void PluginClient::LocalDeclsJsonSerialize(vector<LocalDeclOp>& decls, string& out)
+{
+    Json::Value root;
+    Json::Value operationObj;
+    Json::Value item;
+    int i = 0;
+    string operation;
+
+    for (auto& decl: decls) {
+        item["id"] = std::to_string(decl.idAttr().getInt());
+        item["attributes"]["symName"] = decl.symNameAttr().getValue().str().c_str();
+        item["attributes"]["typeID"] = decl.typeIDAttr().getInt();
+        item["attributes"]["typeWidth"] = decl.typeWidthAttr().getInt();
+        operation = "operation" + std::to_string(i++);
+        root[operation] = item;
+        item.clear();
+    }
+    out = root.toStyledString();
+}
+
 void PluginClient::IRTransBegin(const string& funcName, const string& param)
 {
     string result;
@@ -147,7 +167,15 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         vector<FunctionOp> allFuncOps = clientAPI.GetAllFunc();
         OpJsonSerialize(allFuncOps, result);
         this->ReceiveSendMsg("FuncOpResult", result);
-    } else {
+    } else if (funcName == "GetLocalDecls") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t funcID = atol(root[std::to_string(0)].asString().c_str());
+        vector<LocalDeclOp> decls = clientAPI.GetDecls(funcID);
+        LocalDeclsJsonSerialize(decls, result);
+        this->ReceiveSendMsg("LocalDeclOpResult", result);
+    }else {
         LOGW("function: %s not found!\n", funcName.c_str());
     }
 

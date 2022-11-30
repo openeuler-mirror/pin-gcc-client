@@ -40,6 +40,16 @@ void FunctionOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
         builder.getBoolAttr(declaredInline));
 }
 
+void LocalDeclOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                        uint64_t id, StringRef symName,
+                        int64_t typeID, uint64_t typeWidth) {
+    LocalDeclOp::build(builder, state,
+        builder.getI64IntegerAttr(id),
+        builder.getStringAttr(symName),
+        builder.getI64IntegerAttr(typeID),
+        builder.getI64IntegerAttr(typeWidth));
+}
+
 //===----------------------------------------------------------------------===//
 // TableGen'd op method definitions
 //===----------------------------------------------------------------------===//

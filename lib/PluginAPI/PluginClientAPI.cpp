@@ -23,4 +23,10 @@ vector<FunctionOp> PluginClientAPI::GetAllFunc()
 {
     return gimpleConversion.GetAllFunction();
 }
+
+vector<LocalDeclOp> PluginClientAPI::GetDecls(uint64_t funcID)
+{
+    return gimpleConversion.GetAllDecls(funcID);
+}
+
 } // namespace PluginAPI
