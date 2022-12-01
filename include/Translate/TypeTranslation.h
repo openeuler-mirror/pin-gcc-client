@@ -14,40 +14,49 @@
    along with this program; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.
 
-   Author: Mingchuan Wu and Yancheng Li
-   Create: 2022-08-18
+   Author: Guangya Ding
+   Create: 2022-11-23
    Description:
-    This file contains the declaration of the GimpleToPlugin class.
+    This file declares the type translation function going from MLIR Plugin
+    dialect to Plugin IR and back.
 */
 
-#ifndef GIMPLE_TO_PLUGINOPS_H
-#define GIMPLE_TO_PLUGINOPS_H
-
-#include "Translate/ToPluginOpsInterface.h"
-#include "Translate/TypeTranslation.h"
+#ifndef MLIR_TAGET_PLUGINIR_TYPETRANSLATION_H
+#define MLIR_TAGET_PLUGINIR_TYPETRANSLATION_H
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Types.h"
+#include "Dialect/PluginTypes.h"
 
 namespace PluginIR {
 using std::vector;
+using namespace mlir;
 
-class GimpleToPluginOps : public ToPluginOpsInterface {
+namespace detail {
+    class TypeFromPluginIRTranslatorImpl;
+    class TypeToPluginIRTranslatorImpl;
+} // namespace detail
+
+class TypeFromPluginIRTranslator {
 public:
-    GimpleToPluginOps (mlir::MLIRContext &context) : builder(&context) , typeTranslator(context) {}
-    GimpleToPluginOps () = default;
-    ~GimpleToPluginOps () = default;
+    TypeFromPluginIRTranslator (mlir::MLIRContext &context);
+    ~TypeFromPluginIRTranslator ();
 
-    /* ToPluginInterface */
-    vector<mlir::Plugin::FunctionOp> GetAllFunction() override;
+    /* Translates the given Plugin IR type to the MLIR Plugin dialect. */
+    PluginTypeBase translateType (uintptr_t id);
+
+    PluginTypeID getPluginTypeId (PluginTypeBase type);
+  
+    uint64_t getBitWidth (PluginTypeBase type);
 
 private:
-    mlir::OpBuilder builder;
-    TypeFromPluginIRTranslator typeTranslator;
+    std::unique_ptr<detail::TypeFromPluginIRTranslatorImpl> impl;
 };
+
 } // namespace PluginIR
 
-#endif // GIMPLE_TO_PLUGINOPS_H
+#endif // MLIR_TAGET_PLUGINIR_TYPETRANSLATION_H

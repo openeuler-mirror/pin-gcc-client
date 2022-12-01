@@ -17,6 +17,7 @@
 */
 
 #include "Translate/GimpleToPluginOps.h"
+#include "Dialect/PluginTypes.h"
 
 #include <cstdio>
 
