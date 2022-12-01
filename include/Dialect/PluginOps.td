@@ -41,4 +41,19 @@ def FunctionOp : Plugin_Op<"function", [NoSideEffect]> {
     OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$funcName, "bool":$declaredInline)>
   ];
 }
+
+def LocalDeclOp : Plugin_Op<"declaration", [NoSideEffect]> {
+  let summary = "local variable declaration";
+  let description = [{TODO}];
+  let arguments = (ins OptionalAttr<UI64Attr>:$id,
+                       OptionalAttr<StrAttr>:$symName,
+                       OptionalAttr<I64Attr>:$typeID,
+                       OptionalAttr<UI64Attr>:$typeWidth);
+  let regions = (region AnyRegion:$bodyRegion);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$symName,
+                  "int64_t":$typeID, "uint64_t":$typeWidth)>
+  ];
+}
+
 #endif // PLUGIN_OPS_TD

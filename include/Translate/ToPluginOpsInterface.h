@@ -36,6 +36,7 @@ class ToPluginOpsInterface {
 public:
     /* Operation. */
     virtual vector<FunctionOp> GetAllFunction() = 0;
+    virtual vector<LocalDeclOp> GetAllDecls(uint64_t) = 0;
 };
 } // namespace PluginIR
 

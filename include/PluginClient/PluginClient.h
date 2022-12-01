@@ -105,6 +105,7 @@ public:
     /* 获取client对象实例,有且只有一个实例对象 */
     static std::shared_ptr<PluginClient> GetInstance(void);
     void OpJsonSerialize(vector<mlir::Plugin::FunctionOp>& data, string& out);
+    void LocalDeclsJsonSerialize(vector<mlir::Plugin::LocalDeclOp>& decls, string& out);
     /* 将Type类型数据序列化 */
     void TypeJsonSerialize(PluginIR::PluginTypeBase& type, string& out);
     /* 获取gcc插件数据并进行IR转换，将转换后的数据序列化返回给server。param：函数入参序列化后的数据 */

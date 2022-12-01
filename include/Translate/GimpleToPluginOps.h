@@ -43,6 +43,7 @@ public:
 
     /* ToPluginInterface */
     vector<mlir::Plugin::FunctionOp> GetAllFunction() override;
+    vector<mlir::Plugin::LocalDeclOp> GetAllDecls(uint64_t) override;
 
 private:
     mlir::OpBuilder builder;

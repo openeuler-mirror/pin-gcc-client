@@ -66,4 +66,30 @@ vector<FunctionOp> GimpleToPluginOps::GetAllFunction()
     return functions;
 }
 
+vector<LocalDeclOp> GimpleToPluginOps::GetAllDecls(uint64_t funcID)
+{
+    function *fn = reinterpret_cast<function *>(funcID);
+    vector<LocalDeclOp> decls;
+    if (!vec_safe_is_empty(fn->local_decls)) {
+        unsigned ix = 0;
+        tree var = NULL_TREE;
+        FOR_EACH_LOCAL_DECL (fn, ix, var) {
+            uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(var));
+            LocalDeclOp decl;
+            if (TREE_CODE(var) != VAR_DECL || !DECL_NAME (var)) {
+                continue;
+            }
+            const char* name = IDENTIFIER_POINTER(DECL_NAME (var));
+            mlir::StringRef symName(name);
+            auto location = builder.getUnknownLoc();
+	    PluginTypeBase declType = typeTranslator.translateType((intptr_t)TREE_TYPE(var));
+            int64_t typeID = typeTranslator.getPluginTypeId (declType);
+            uint64_t typeWidth = typeTranslator.getBitWidth (declType);
+            decl = builder.create<LocalDeclOp>(location, id, symName, typeID, typeWidth);
+            decls.push_back(decl);
+        }
+    }
+    return decls;
+}
+
 } // namespace PluginIR
