@@ -43,6 +43,7 @@ using std::string;
 using std::endl;
 using std::vector;
 using std::map;
+using std::pair;
 
 using plugin::PluginService;
 using grpc::Channel;
@@ -107,6 +108,14 @@ public:
     static std::shared_ptr<PluginClient> GetInstance(void);
     void OpJsonSerialize(vector<mlir::Plugin::FunctionOp>& data, string& out);
     void LocalDeclsJsonSerialize(vector<mlir::Plugin::LocalDeclOp>& decls, string& out);
+    void LoopOpsJsonSerialize(vector<mlir::Plugin::LoopOp>& loops, string& out);
+    void LoopOpJsonSerialize(mlir::Plugin::LoopOp& loop, string& out);
+    void BoolResultJsonSerialize(bool, string&);
+    void BlockJsonSerialize(uint64_t, string&);
+    void BlocksJsonSerialize(vector<uint64_t>&, string&);
+    void EdgesJsonSerialize(vector<pair<uint64_t, uint64_t> >&, string&);
+    void EdgeJsonSerialize(pair<uint64_t, uint64_t>&, string&);
+    void NopJsonSerialize(string&);
     /* 将Type类型数据序列化 */
     void TypeJsonSerialize(PluginIR::PluginTypeBase& type, string& out);
     /* 获取gcc插件数据并进行IR转换，将转换后的数据序列化返回给server。param：函数入参序列化后的数据 */

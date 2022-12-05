@@ -56,4 +56,23 @@ def LocalDeclOp : Plugin_Op<"declaration", [NoSideEffect]> {
   ];
 }
 
+def LoopOp : Plugin_Op<"loop", [NoSideEffect]> {
+  let summary = "loop operation";
+  let description = [{
+        TODO.
+  }];
+  let arguments = (ins OptionalAttr<UI64Attr>:$id,
+                       OptionalAttr<UI32Attr>:$index,
+                       OptionalAttr<UI64Attr>:$innerLoopId,
+                       OptionalAttr<UI64Attr>:$outerLoopId,
+                       OptionalAttr<UI32Attr>:$numBlock);
+  let regions = (region AnyRegion:$bodyRegion);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint32_t":$index,
+                      "uint64_t":$innerLoopId, "uint64_t":$outerLoopId,
+                      "uint32_t":$numBlock)>
+  ];
+}
+
+
 #endif // PLUGIN_OPS_TD

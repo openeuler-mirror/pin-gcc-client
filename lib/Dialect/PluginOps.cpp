@@ -35,7 +35,7 @@ using namespace mlir::Plugin;
 void FunctionOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                        uint64_t id, StringRef funcName, bool declaredInline) {
     FunctionOp::build(builder, state,
-		builder.getI64IntegerAttr(id),
+        builder.getI64IntegerAttr(id),
         builder.getStringAttr(funcName),
         builder.getBoolAttr(declaredInline));
 }
@@ -48,6 +48,17 @@ void LocalDeclOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
         builder.getStringAttr(symName),
         builder.getI64IntegerAttr(typeID),
         builder.getI64IntegerAttr(typeWidth));
+}
+
+void LoopOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                   uint64_t id, uint32_t index, uint64_t innerLoopId,
+                   uint64_t outerLoopId, uint32_t numBlock) {
+    LoopOp::build(builder, state,
+        builder.getI64IntegerAttr(id),
+        builder.getI32IntegerAttr(index),
+        builder.getI64IntegerAttr(innerLoopId),
+        builder.getI64IntegerAttr(outerLoopId),
+        builder.getI32IntegerAttr(numBlock));
 }
 
 //===----------------------------------------------------------------------===//

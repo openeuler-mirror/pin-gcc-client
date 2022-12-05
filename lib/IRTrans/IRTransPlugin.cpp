@@ -31,6 +31,7 @@
 #include "context.h"
 #include "tree-pass.h"
 #include "tree.h"
+#include "tree-cfg.h"
 
 using namespace PinClient;
 

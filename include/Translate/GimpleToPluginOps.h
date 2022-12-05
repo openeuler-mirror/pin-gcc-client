@@ -44,7 +44,18 @@ public:
     /* ToPluginInterface */
     vector<mlir::Plugin::FunctionOp> GetAllFunction() override;
     vector<mlir::Plugin::LocalDeclOp> GetAllDecls(uint64_t) override;
-
+    vector<mlir::Plugin::LoopOp> GetAllLoops(uint64_t) override;
+    LoopOp GetLoop(uint64_t) override;
+    bool IsBlockInside(uint64_t, uint64_t) override;
+    vector<uint64_t> GetBlocksInLoop(uint64_t) override;
+    uint64_t AllocateNewLoop(void) override;
+    void DeleteLoop(uint64_t) override;
+    void AddLoop (uint64_t, uint64_t, uint64_t) override;
+    uint64_t GetHeader(uint64_t) override;
+    uint64_t GetLatch(uint64_t) override;
+    vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t) override;
+    std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t) override;
+    LoopOp GetBlockLoopFather(uint64_t) override;
 private:
     mlir::OpBuilder builder;
     TypeFromPluginIRTranslator typeTranslator;
