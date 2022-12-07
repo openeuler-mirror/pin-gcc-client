@@ -24,6 +24,7 @@
 #define BASIC_PLUGIN_OPS_API_H
 
 #include "Dialect/PluginOps.h"
+#include "Dialect/PluginTypes.h"
 
 #include <vector>
 #include <string>
@@ -32,6 +33,7 @@ namespace PluginAPI {
 using std::vector;
 using std::string;
 using namespace mlir::Plugin;
+using namespace PluginIR;
 
 /* The BasicPluginAPI class defines the basic plugin API, both the plugin
    client and the server should inherit this class and implement there own
@@ -73,6 +75,9 @@ public:
     virtual bool UpdateSSA() = 0;
     virtual vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) = 0;
     virtual bool IsDomInfoAvailable() = 0;
+    virtual mlir::Value GetValue(uint64_t) = 0;
+    virtual mlir::Value BuildMemRef(PluginTypeBase, uint64_t, uint64_t) = 0;
+
 }; // class BasicPluginOpsAPI
 } // namespace PluginAPI
 

@@ -69,6 +69,8 @@ public:
     bool UpdateSSA() override;
     vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) override;
     bool IsDomInfoAvailable() override;
+	mlir::Value GetValue(uint64_t) override;
+	mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t) override;
 
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;
