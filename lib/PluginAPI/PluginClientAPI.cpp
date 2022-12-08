@@ -86,5 +86,30 @@ LoopOp PluginClientAPI::GetBlockLoopFather(uint64_t blockId)
 {
     return gimpleConversion.GetBlockLoopFather(blockId);
 }
+PhiOp PluginClientAPI::GetPhiOp(uint64_t id)
+{
+    return gimpleConversion.BuildPhiOp(id);
+}
+
+CallOp PluginClientAPI::GetCallOp(uint64_t id)
+{
+    return gimpleConversion.BuildCallOp(id);
+}
+
+bool PluginClientAPI::SetLhsInCallOp(uint64_t callId, uint64_t lhsId)
+{
+    return gimpleConversion.SetGimpleCallLHS(callId, lhsId);
+}
+
+uint64_t PluginClientAPI::CreateCondOp(IComparisonCode iCode,
+                                       uint64_t LHS, uint64_t RHS)
+{
+    return gimpleConversion.CreateGcond(iCode, LHS, RHS);
+}
+
+mlir::Value PluginClientAPI::GetResultFromPhi(uint64_t id)
+{
+    return gimpleConversion.GetGphiResult(id);
+}
 
 } // namespace PluginAPI

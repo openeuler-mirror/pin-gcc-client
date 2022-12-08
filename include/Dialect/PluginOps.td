@@ -22,6 +22,7 @@
 
 include "PluginDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/CallInterfaces.td"
 
 def FunctionOp : Plugin_Op<"function", [NoSideEffect]> {
   let summary = "function with a region";
@@ -29,8 +30,8 @@ def FunctionOp : Plugin_Op<"function", [NoSideEffect]> {
     TODO.
   }];
 
-  let arguments = (ins OptionalAttr<UI64Attr>:$id,
-                       OptionalAttr<StrAttr>:$funcName,
+  let arguments = (ins UI64Attr:$id,
+                       StrAttr:$funcName,
                        OptionalAttr<BoolAttr>:$declaredInline);
   let regions = (region AnyRegion:$bodyRegion);
 
@@ -74,5 +75,129 @@ def LoopOp : Plugin_Op<"loop", [NoSideEffect]> {
   ];
 }
 
+def CallOp : Plugin_Op<"call", [
+    DeclareOpInterfaceMethods<CallOpInterface>]> {
+  let summary = "call operation";
+  let description = [{
+    CallOp represent calls to a user defined function that needs to
+    be specialized for the shape of its arguments.
+    The callee name is attached as a symbol reference via an attribute.
+    The arguments list must match the arguments expected by the callee.
+  }];
+  let arguments = (ins UI64Attr:$id,
+                       FlatSymbolRefAttr:$callee,
+                       Variadic<AnyType>:$inputs);
+  let results = (outs Optional<AnyType>:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$callee,
+                  "ArrayRef<Value>":$arguments)>
+  ];
+  let assemblyFormat = [{
+    $callee `(` $inputs `)` attr-dict `:` functional-type($inputs, results)
+  }];
+}
+
+def PhiOp : Plugin_Op<"phi", [NoSideEffect]> {
+  let summary = "phi op";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id,
+                       UI32Attr:$capacity,
+                       UI32Attr:$nArgs,
+                       Variadic<AnyType>:$operands);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint32_t":$capacity,
+                  "uint32_t":$nArgs, "ArrayRef<Value>":$operands,
+                  "Type":$resultType)>
+  ];
+}
+
+def AssignOp : Plugin_Op<"assign", [NoSideEffect]> {
+  let summary = "assign op";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id,
+                       IExprCodeAttr:$exprCode,
+                       Variadic<AnyType>:$operands);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IExprCode":$exprCode,
+                  "ArrayRef<Value>":$operands, "Type":$resultType)>
+  ];
+  // Specify a parser and printer method.
+  // let parser = [{ return ::parseAssignOp(parser, result); }];
+  // let printer = [{ return ::print(p, *this); }];
+}
+
+def PlaceholderOp : Plugin_Op<"placeholder", [NoSideEffect]> {
+  let summary = "PlaceHolder.";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id,
+                       OptionalAttr<IDefineCodeAttr>:$defCode);
+  let results = (outs AnyType);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "Type":$retType)>
+  ];
+}
+
+def BaseOp : Plugin_Op<"statement_base", [NoSideEffect]> {
+  let summary = "Base operation, just like placeholder for statement.";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, StrAttr:$opCode);
+  let results = (outs AnyType);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$opCode)>
+  ];
+}
+
+// Terminators
+// Opaque builder used for terminator operations that contain successors.
+
+class Plugin_TerminatorOp<string mnemonic, list<OpTrait> traits = []> :
+    Plugin_Op<mnemonic, !listconcat(traits, [Terminator])>;
+
+def FallThroughOp : Plugin_TerminatorOp<"fallthrough", [NoSideEffect]> {
+  let summary = "FallThroughOp";
+  let description = [{TODO}];
+  let successors = (successor AnySuccessor:$dest);
+  // for bb address
+  let arguments = (ins UI64Attr:$address, UI64Attr:$destaddr);
+  let results = (outs AnyType);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$address, "Block*":$dest, "uint64_t":$destaddr)>
+  ];
+}
+
+def CondOp : Plugin_TerminatorOp<"condition", [NoSideEffect]> {
+  let summary = "condition op";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address,
+                       IComparisonAttr:$condCode,
+                       AnyType:$LHS, AnyType:$RHS,
+                       UI64Attr:$tbaddr, UI64Attr:$fbaddr,
+                       OptionalAttr<TypeAttr>:$trueLabel,
+                       OptionalAttr<TypeAttr>:$falseLabel);
+  let successors = (successor AnySuccessor:$tb, AnySuccessor:$fb);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "IComparisonCode":$condCode,
+                  "Value":$lhs, "Value":$rhs, "Block*":$tb, "Block*":$fb,
+                  "uint64_t":$tbaddr, "uint64_t":$fbaddr, "Value":$trueLabel,
+                  "Value":$falseLabel)>
+  ];
+  let extraClassDeclaration = [{
+    Value GetLHS() { return getOperand(0); }
+    Value GetRHS() { return getOperand(1); }
+  }];
+}
+
+// todo: currently RetOp do not have a correct assemblyFormat
+def RetOp : Plugin_TerminatorOp<"ret", [NoSideEffect]> {
+  let summary = "RetOp";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$address); // for bb address
+  let results = (outs AnyType);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$address)>
+  ];
+}
 
 #endif // PLUGIN_OPS_TD

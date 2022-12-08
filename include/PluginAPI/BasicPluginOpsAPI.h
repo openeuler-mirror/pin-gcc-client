@@ -55,6 +55,11 @@ public:
     virtual vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t) = 0;
     virtual std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t) = 0;
     virtual LoopOp GetBlockLoopFather(uint64_t) = 0;
+    virtual PhiOp GetPhiOp(uint64_t) = 0;
+    virtual CallOp GetCallOp(uint64_t) = 0;
+    virtual bool SetLhsInCallOp(uint64_t, uint64_t) = 0;
+    virtual uint64_t CreateCondOp(IComparisonCode, uint64_t, uint64_t) = 0;
+    virtual mlir::Value GetResultFromPhi(uint64_t) = 0;
 }; // class BasicPluginOpsAPI
 } // namespace PluginAPI
 

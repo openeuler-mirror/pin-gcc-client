@@ -29,6 +29,10 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/CallInterfaces.h"
+
+// Pull in all enum type definitions and utility function declarations.
+#include "Dialect/PluginOpsEnums.h.inc"
 
 #define GET_OP_CLASSES
 #include "Dialect/PluginOps.h.inc"

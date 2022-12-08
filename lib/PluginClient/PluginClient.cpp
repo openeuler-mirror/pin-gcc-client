@@ -31,7 +31,6 @@
 #include <sys/socket.h>
 #include <sys/file.h>
 #include <unistd.h>
-#include <json/json.h>
 
 namespace PinClient {
 using namespace mlir::Plugin;
@@ -106,7 +105,7 @@ void PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type, string& ou
     out = root.toStyledString();
 }
 
-void PluginClient::OpJsonSerialize(vector<FunctionOp>& data, string& out)
+void PluginClient::FunctionOpJsonSerialize(vector<FunctionOp>& data, string& out)
 {
     Json::Value root;
     Json::Value operationObj;
@@ -122,12 +121,75 @@ void PluginClient::OpJsonSerialize(vector<FunctionOp>& data, string& out)
             item["attributes"]["declaredInline"] = "1";
         else
             item["attributes"]["declaredInline"] = "0";
-        item["attributes"]["funcName"] = d.funcNameAttr().getValue().str();
-        operation = "operation" + std::to_string(i++);
+        item["attributes"]["funcName"] = d.funcNameAttr().getValue().str().c_str();
+        auto &region = d.getRegion();
+        size_t bbIdx = 0;
+        for (auto &b : region) {
+            string blockStr = "block" + std::to_string(bbIdx++);
+            uint64_t bbAddress = 0;
+            size_t opIdx = 0;
+            for (auto &inst : b) {
+                if (auto phOp = llvm::dyn_cast<PlaceholderOp>(inst)) continue;
+                string opStr = "Operation" + std::to_string(opIdx++);
+                item["region"][blockStr]["ops"][opStr] = OperationJsonSerialize(&inst, bbAddress);
+            }
+            assert(bbAddress != 0);
+            item["region"][blockStr]["address"] = std::to_string(bbAddress);
+        }
+        operation = "FunctionOp" + std::to_string(i++);
         root[operation] = item;
         item.clear();
     }
     out = root.toStyledString();
+}
+
+Json::Value PluginClient::OperationJsonSerialize(mlir::Operation *operation,
+                                                 uint64_t &bbId)
+{
+    Json::Value root;
+    if (AssignOp op = llvm::dyn_cast<AssignOp>(operation)) {
+        root = AssignOpJsonSerialize(op);
+    } else if (CallOp op = llvm::dyn_cast<CallOp>(operation)) {
+        root = CallOpJsonSerialize(op);
+    } else if (CondOp op = llvm::dyn_cast<CondOp>(operation)) {
+        root = CondOpJsonSerialize(op, bbId);
+    } else if (PhiOp op = llvm::dyn_cast<PhiOp>(operation)) {
+        root = PhiOpJsonSerialize(op);
+    } else if (FallThroughOp op = llvm::dyn_cast<FallThroughOp>(operation)) {
+        root = FallThroughOpJsonSerialize(op, bbId);
+    } else if (RetOp op = llvm::dyn_cast<RetOp>(operation)) {
+        root = RetOpJsonSerialize(op, bbId);
+    } else if (BaseOp op = llvm::dyn_cast<BaseOp>(operation)) {
+        root = BaseOpJsonSerialize(op);
+    }
+    root["OperationName"] = operation->getName().getStringRef().str();
+    return root;
+}
+
+Json::Value PluginClient::BaseOpJsonSerialize(BaseOp data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["opCode"] = data.opCodeAttr().getValue().str().c_str();
+    return root;
+}
+
+Json::Value PluginClient::RetOpJsonSerialize(RetOp data, uint64_t &bbId)
+{
+    Json::Value root;
+    bbId = data.addressAttr().getInt();
+    root["address"] = std::to_string(bbId);
+    return root;
+}
+
+Json::Value PluginClient::FallThroughOpJsonSerialize(FallThroughOp data,
+                                                     uint64_t &bbId)
+{
+    Json::Value root;
+    bbId = data.addressAttr().getInt();
+    root["address"] = std::to_string(bbId);
+    root["destaddr"] = std::to_string(data.destaddrAttr().getInt());
+    return root;
 }
 
 void PluginClient::LocalDeclsJsonSerialize(vector<LocalDeclOp>& decls, string& out)
@@ -245,6 +307,78 @@ void PluginClient::NopJsonSerialize(string& out)
     out = root.toStyledString();
 }
 
+Json::Value PluginClient::CallOpJsonSerialize(CallOp& data)
+{
+    Json::Value item;
+    item["id"] = std::to_string(data.idAttr().getInt());
+    item["callee"] = data.callee().str();
+    size_t opIdx = 0;
+    for (mlir::Value v : data.getArgOperands()) {
+        PlaceholderOp phOp = v.getDefiningOp<PlaceholderOp>();
+        string input = "input" + std::to_string(opIdx++);
+        item["operands"][input]["id"] = std::to_string(phOp.idAttr().getInt());
+        item["operands"][input]["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
+    }
+    return item;
+}
+
+Json::Value PluginClient::CondOpJsonSerialize(CondOp& data, uint64_t &bbId)
+{
+    Json::Value item;
+    item["id"] = std::to_string(data.idAttr().getInt());
+    item["condCode"] = std::to_string(data.condCodeAttr().getInt());
+    item["lhs"] = ValueJsonSerialize(data.GetLHS());
+    item["rhs"] = ValueJsonSerialize(data.GetRHS());
+    bbId = data.addressAttr().getInt();
+    item["address"] = std::to_string(bbId);
+    item["tbaddr"] = std::to_string(data.tbaddrAttr().getInt());
+    item["fbaddr"] = std::to_string(data.fbaddrAttr().getInt());
+    return item;
+}
+
+Json::Value PluginClient::PhiOpJsonSerialize(PhiOp& data)
+{
+    Json::Value item;
+    item["id"] = std::to_string(data.idAttr().getInt());
+    item["capacity"] = std::to_string(data.capacityAttr().getInt());
+    item["nArgs"] = std::to_string(data.nArgsAttr().getInt());
+    size_t opIdx = 0;
+    for (mlir::Value v : data.operands()) {
+        PlaceholderOp phOp = v.getDefiningOp<PlaceholderOp>();
+        string input = "input" + std::to_string(opIdx++);
+        item["operands"][input]["id"] = std::to_string(phOp.idAttr().getInt());
+        item["operands"][input]["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
+    }
+    return item;
+}
+
+Json::Value PluginClient::AssignOpJsonSerialize(AssignOp& data)
+{
+    Json::Value item;
+    item["id"] = std::to_string(data.idAttr().getInt());
+    item["exprCode"] = std::to_string(data.exprCodeAttr().getInt());
+    size_t opIdx = 0;
+    for (mlir::Value v : data.operands()) {
+        PlaceholderOp phOp = v.getDefiningOp<PlaceholderOp>();
+        string input = "input" + std::to_string(opIdx++);
+        item["operands"][input]["id"] = std::to_string(phOp.idAttr().getInt());
+        item["operands"][input]["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
+    }
+    return item;
+}
+
+Json::Value PluginClient::ValueJsonSerialize(mlir::Value data)
+{
+    Json::Value root;
+    if (PlaceholderOp phOp = data.getDefiningOp<PlaceholderOp>()) {
+        root["id"] = std::to_string(phOp.idAttr().getInt());
+        root["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
+    } else {
+        LOGE("ERROR: Can't Serialize!");
+    }
+    return root;
+}
+
 void PluginClient::IRTransBegin(const string& funcName, const string& param)
 {
     string result;
@@ -260,7 +394,7 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         context.getOrLoadDialect<PluginDialect>();
         PluginAPI::PluginClientAPI clientAPI(context);
         vector<FunctionOp> allFuncOps = clientAPI.GetAllFunc();
-        OpJsonSerialize(allFuncOps, result);
+        FunctionOpJsonSerialize(allFuncOps, result);
         this->ReceiveSendMsg("FuncOpResult", result);
     } else if (funcName == "GetLocalDecls") {
         /// Json格式
@@ -436,6 +570,47 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         LoopOp loopFather = clientAPI.GetBlockLoopFather(blockId);
         LoopOpJsonSerialize(loopFather, result);
         this->ReceiveSendMsg("LoopOpResult", result);
+    } else if (funcName == "GetPhiOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t id = atol(root[std::to_string(0)].asString().c_str());
+        PhiOp op = clientAPI.GetPhiOp(id);
+        Json::Value result = PhiOpJsonSerialize(op);
+        this->ReceiveSendMsg("OpsResult", result.toStyledString());
+    } else if (funcName == "GetCallOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t id = atol(root[std::to_string(0)].asString().c_str());
+        CallOp op = clientAPI.GetCallOp(id);
+        Json::Value result = CallOpJsonSerialize(op);
+        this->ReceiveSendMsg("OpsResult", result.toStyledString());
+    } else if (funcName == "SetLhsInCallOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t callId = atol(root["callId"].asString().c_str());
+        uint64_t lhsId = atol(root["lhsId"].asString().c_str());
+        bool ret = clientAPI.SetLhsInCallOp(callId, lhsId);
+        this->ReceiveSendMsg("BoolResult", std::to_string(ret));
+    } else if (funcName == "CreateCondOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        int condCode = atol(root["condCode"].asString().c_str());
+        uint64_t lhsId = atol(root["lhsId"].asString().c_str());
+        uint64_t rhsId = atol(root["rhsId"].asString().c_str());
+        uint64_t ret = clientAPI.CreateCondOp(IComparisonCode(condCode),
+                                              lhsId, rhsId);
+        this->ReceiveSendMsg("IdResult", std::to_string(ret));
+    } else if (funcName == "GetResultFromPhi") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t id = atol(root["id"].asString().c_str());
+        mlir::Value ret = clientAPI.GetResultFromPhi(id);
+        this->ReceiveSendMsg("ValueResult", ValueJsonSerialize(ret).toStyledString());
     } else {
         LOGW("function: %s not found!\n", funcName.c_str());
     }

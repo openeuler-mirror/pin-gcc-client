@@ -1,5 +1,8 @@
 # Add for the dialect operations. arg:(dialect dialect_namespace)
 file(COPY /usr/bin/mlir-tblgen DESTINATION ./)
+set(LLVM_TARGET_DEFINITIONS PluginOps.td)
+mlir_tablegen(PluginOpsEnums.h.inc -gen-enum-decls)
+mlir_tablegen(PluginOpsEnums.cpp.inc -gen-enum-defs)
 add_mlir_dialect(PluginOps Plugin)
 
 # Necessary to generate documentation. arg:(doc_filename command output_file output_directory)

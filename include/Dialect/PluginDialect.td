@@ -48,4 +48,43 @@ def Plugin_Dialect : Dialect {
 class Plugin_Op<string mnemonic, list<OpTrait> traits = []> :
     Op<Plugin_Dialect, mnemonic, traits>;
 
+//===----------------------------------------------------------------------===//
+// PluginDialect enum definitions
+//===----------------------------------------------------------------------===//
+
+def IComparisonLT    : I32EnumAttrCase<"lt", 0>;
+def IComparisonLE    : I32EnumAttrCase<"le", 1>;
+def IComparisonGT    : I32EnumAttrCase<"gt", 2>;
+def IComparisonGE    : I32EnumAttrCase<"ge", 3>;
+def IComparisonLTGT  : I32EnumAttrCase<"ltgt", 4>;
+def IComparisonEQ    : I32EnumAttrCase<"eq", 5>;
+def IComparisonNE    : I32EnumAttrCase<"ne", 6>;
+def IComparisonUNDEF : I32EnumAttrCase<"UNDEF", 7>;
+def IComparisonAttr  : I32EnumAttr<
+   "IComparisonCode", "plugin comparison code",
+   [IComparisonLT, IComparisonLE, IComparisonGT, IComparisonGE, 
+    IComparisonLTGT, IComparisonEQ, IComparisonNE, IComparisonUNDEF]>{
+  let cppNamespace = "::mlir::Plugin";
+}
+
+def IDefineCodeMemRef    : I32EnumAttrCase<"MemRef", 0>;
+def IDefineCodeIntCST    : I32EnumAttrCase<"IntCST", 1>;
+def IDefineCodeSSA       : I32EnumAttrCase<"SSA", 2>;
+def IDefineCodeUNDEF     : I32EnumAttrCase<"UNDEF", 3>;
+def IDefineCodeAttr  : I32EnumAttr<
+   "IDefineCode", "plugin define code",
+   [IDefineCodeMemRef, IDefineCodeIntCST, IDefineCodeUNDEF]>{
+  let cppNamespace = "::mlir::Plugin";
+}
+
+def IExprCodePlus    : I32EnumAttrCase<"Plus", 0>;
+def IExprCodeMinus   : I32EnumAttrCase<"Minus", 1>;
+def IExprCodeNop     : I32EnumAttrCase<"Nop", 2>;
+def IExprCodeUNDEF   : I32EnumAttrCase<"UNDEF", 3>;
+def IExprCodeAttr  : I32EnumAttr<
+   "IExprCode", "plugin expr code",
+   [IExprCodePlus, IExprCodeMinus, IExprCodeNop, IExprCodeUNDEF]>{
+  let cppNamespace = "::mlir::Plugin";
+}
+
 #endif // PLUGIN_DIALECT_TD
