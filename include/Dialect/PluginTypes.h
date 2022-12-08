@@ -80,6 +80,7 @@ private:
 namespace detail {
     struct PluginIntegerTypeStorage;
     struct PluginFloatTypeStorage;
+    struct PluginPointerTypeStorage;
 }
 
 class PluginIntegerType : public Type::TypeBase<PluginIntegerType, PluginTypeBase, detail::PluginIntegerTypeStorage> {
@@ -116,6 +117,17 @@ public:
 
     unsigned getWidth() const;
 };
+
+class PluginPointerType : public Type::TypeBase<PluginPointerType, PluginTypeBase, detail::PluginPointerTypeStorage> {
+public:
+    using Base::Base;
+
+    PluginTypeID getPluginTypeID ();
+
+    static PluginPointerType get(MLIRContext *context, Type pointee);
+
+    Type getElementType();
+}; // class PluginPointerType
 
 class PluginVoidType : public Type::TypeBase<PluginVoidType, PluginTypeBase, TypeStorage> {
 public:

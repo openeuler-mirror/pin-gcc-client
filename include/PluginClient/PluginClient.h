@@ -128,7 +128,7 @@ public:
     Json::Value RetOpJsonSerialize(mlir::Plugin::RetOp data, uint64_t&);
     Json::Value ValueJsonSerialize(mlir::Value value);
     /* 将Type类型数据序列化 */
-    void TypeJsonSerialize(PluginIR::PluginTypeBase& type, string& out);
+    Json::Value TypeJsonSerialize(PluginIR::PluginTypeBase& type);
     /* 获取gcc插件数据并进行IR转换，将转换后的数据序列化返回给server。param：函数入参序列化后的数据 */
     void IRTransBegin(const string& funname, const string& param);
     /* 从配置文件读取初始化信息 */
