@@ -37,6 +37,18 @@ public:
     /* Operation. */
     virtual vector<FunctionOp> GetAllFunction() = 0;
     virtual vector<LocalDeclOp> GetAllDecls(uint64_t) = 0;
+    virtual vector<LoopOp> GetAllLoops(uint64_t) = 0;
+    virtual LoopOp GetLoop(uint64_t) = 0;
+    virtual bool IsBlockInside(uint64_t, uint64_t) = 0;
+    virtual vector<uint64_t> GetBlocksInLoop(uint64_t)  = 0;
+    virtual uint64_t AllocateNewLoop(void) = 0;
+    virtual void DeleteLoop(uint64_t) = 0;
+    virtual void AddLoop (uint64_t, uint64_t, uint64_t) = 0;
+    virtual uint64_t GetHeader(uint64_t) = 0;
+    virtual uint64_t GetLatch(uint64_t) = 0;
+    virtual vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t) = 0;
+    virtual std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t) = 0;
+    virtual LoopOp GetBlockLoopFather(uint64_t) = 0;
 };
 } // namespace PluginIR
 

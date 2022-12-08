@@ -31,6 +31,7 @@
 #include "context.h"
 #include "tree-pass.h"
 #include "tree.h"
+#include "tree-cfg.h"
 
 using namespace PinClient;
 
@@ -127,8 +128,28 @@ void ManagerSetupCallback(void)
     std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
     vector<string> userFuncs = client->GetFuncNameByInject(inject);
     for (auto &userFunc : userFuncs) {
+        if (client->GetUserFuncState() == STATE_TIMEOUT) {
+            break;
+        }
         string value = std::to_string(inject) + ":" + userFunc;
         client->ReceiveSendMsg(key, value);
+        while (1) {
+            UserFuncStateEnum state = client->GetUserFuncState();
+            /* server获取到client对应函数的执行结果后,向client回复已执行完,跳出循环执行下一个函数 */
+            if (state == STATE_END) {
+                client->SetUserFuncState(STATE_WAIT_BEGIN);
+                break;
+            } else if (state == STATE_TIMEOUT) {
+                break;
+            } else if (state == STATE_BEGIN) {
+                string funcName = client->GetPluginAPIName();
+                string param = client->GetPluginAPIParam();
+                if (funcName != "") {
+                    client->SetUserFuncState(STATE_WAIT_IR);
+                    client->IRTransBegin(funcName, param);
+                }
+            }
+        }
     }
 }
 
@@ -182,6 +203,7 @@ public:
 
 static std::map<RefPassName, string> g_refPassName {
     {PASS_CFG, "cfg"},
+    {PASS_PHIOPT, "phiopt"},
     {PASS_SSA, "ssa"},
     {PASS_LOOP, "loop"},
 };
@@ -210,6 +232,10 @@ int RegisterPassManagerSetup(InjectPoint inject, const ManagerSetupData& setupDa
     passInfo.pos_op = (pass_positioning_ops)setupData.passPosition;
     switch (setupData.refPassName) {
         case PASS_CFG:
+            passData.type = GIMPLE_PASS;
+            passInfo.pass = new GimplePass(passData);
+            break;
+        case PASS_PHIOPT:
             passData.type = GIMPLE_PASS;
             passInfo.pass = new GimplePass(passData);
             break;
