@@ -62,6 +62,140 @@ void LoopOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 }
 
 //===----------------------------------------------------------------------===//
+// PlaceholderOp
+
+void PlaceholderOp::build(OpBuilder &builder, OperationState &state,
+                          uint64_t id, IDefineCode defCode, Type retType) {
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    if (retType) state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// CallOp
+
+void CallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                   uint64_t id, StringRef callee,
+                   ArrayRef<mlir::Value> arguments) {
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addOperands(arguments);
+    state.addAttribute("callee", builder.getSymbolRefAttr(callee));
+}
+
+/// Return the callee of the generic call operation, this is required by the
+/// call interface.
+CallInterfaceCallable CallOp::getCallableForCallee() {
+    return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+}
+
+/// Get the argument operands to the called function, this is required by the
+/// call interface.
+Operation::operand_range CallOp::getArgOperands() { return inputs(); }
+
+//===----------------------------------------------------------------------===//
+// CondOp
+
+void CondOp::build(OpBuilder &builder, OperationState &state,
+                   uint64_t id, uint64_t address, IComparisonCode condCode,
+                   Value lhs, Value rhs, Block* tb, Block* fb, uint64_t tbaddr,
+                   uint64_t fbaddr, Value trueLabel, Value falseLabel) {
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("address", builder.getI64IntegerAttr(address));
+    state.addOperands({lhs, rhs});
+    state.addAttribute("tbaddr", builder.getI64IntegerAttr(tbaddr));
+    state.addAttribute("fbaddr", builder.getI64IntegerAttr(fbaddr));
+    state.addSuccessors(tb);
+    state.addSuccessors(fb);
+    state.addAttribute("condCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(condCode)));
+    if (trueLabel != nullptr) state.addOperands(trueLabel);
+    if (falseLabel != nullptr) state.addOperands(falseLabel);
+}
+
+//===----------------------------------------------------------------------===//
+// PhiOp
+
+void PhiOp::build(OpBuilder &builder, OperationState &state,
+                   uint64_t id, uint32_t capacity, uint32_t nArgs,
+                   ArrayRef<Value> operands, Type resultType) {
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("capacity", builder.getI32IntegerAttr(capacity));
+    state.addAttribute("nArgs", builder.getI32IntegerAttr(nArgs));
+    state.addOperands(operands);
+    if (resultType) state.addTypes(resultType);
+}
+
+//===----------------------------------------------------------------------===//
+// AssignOp
+
+void AssignOp::build(OpBuilder &builder, OperationState &state,
+                   uint64_t id, IExprCode exprCode,
+                   ArrayRef<Value> operands, Type resultType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("exprCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(exprCode)));
+    state.addOperands(operands);
+    if (resultType) state.addTypes(resultType);
+}
+
+/// The 'OpAsmParser' class provides a collection of methods for parsing
+/// various punctuation, as well as attributes, operands, types, etc. Each of
+/// these methods returns a `ParseResult`. This class is a wrapper around
+/// `LogicalResult` that can be converted to a boolean `true` value on failure,
+/// or `false` on success. This allows for easily chaining together a set of
+/// parser rules. These rules are used to populate an `mlir::OperationState`
+/// similarly to the `build` methods described above.
+static mlir::ParseResult parseAssignOp(mlir::OpAsmParser &parser,
+                                         mlir::OperationState &result) {
+  mlir::DenseElementsAttr value;
+  if (parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseAttribute(value, "value", result.attributes))
+    return failure();
+
+  result.addTypes(value.getType());
+  return success();
+}
+
+/// The 'OpAsmPrinter' class is a stream that allows for formatting
+/// strings, attributes, operands, types, etc.
+static void print(mlir::OpAsmPrinter &printer, AssignOp op) {
+  printer << "assign ";
+  printer.printType(op.getType());
+//   printer << op.value();
+}
+
+//===----------------------------------------------------------------------===//
+// BaseOp
+
+void BaseOp::build(OpBuilder &builder, OperationState &state,
+                   uint64_t id, StringRef opCode)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("opCode", builder.getStringAttr(opCode));
+}
+
+//===----------------------------------------------------------------------===//
+// FallThroughOp
+
+void FallThroughOp::build(OpBuilder &builder, OperationState &state,
+                          uint64_t address, Block* dest, uint64_t destaddr)
+{
+    state.addAttribute("address", builder.getI64IntegerAttr(address));
+    state.addAttribute("destaddr", builder.getI64IntegerAttr(destaddr));
+    state.addSuccessors(dest);
+}
+
+//===----------------------------------------------------------------------===//
+// RetOp
+
+void RetOp::build(OpBuilder &builder, OperationState &state, uint64_t address)
+{
+    state.addAttribute("address", builder.getI64IntegerAttr(address));
+}
+
+//===----------------------------------------------------------------------===//
 // TableGen'd op method definitions
 //===----------------------------------------------------------------------===//
 

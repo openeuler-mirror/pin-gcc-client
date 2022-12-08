@@ -141,6 +141,10 @@ public:
 
 }; // class PluginBooleanType
 
+//===----------------------------------------------------------------------===//
+// Printing and parsing. TODO
+//===----------------------------------------------------------------------===//
+
 } // namespace PluginIR
 
 #endif // MLIR_DIALECT_PLUGINIR_PLUGINTYPES_H_

@@ -47,6 +47,13 @@ public:
     vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t) override;
     std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t) override;
     LoopOp GetBlockLoopFather(uint64_t) override;
+    PhiOp GetPhiOp(uint64_t) override;
+    CallOp GetCallOp(uint64_t) override;
+    /* Plugin API for CallOp. */
+    bool SetLhsInCallOp(uint64_t, uint64_t) override;
+    /* Plugin API for CondOp. */
+    uint64_t CreateCondOp(IComparisonCode, uint64_t, uint64_t) override;
+    mlir::Value GetResultFromPhi(uint64_t) override;
 
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;
