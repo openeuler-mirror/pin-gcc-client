@@ -70,7 +70,7 @@ int PluginClient::GetEvent(InjectPoint inject, plugin_event *event)
     return -1;
 }
 
-void PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type, string& out)
+Json::Value PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type)
 {
     Json::Value root;
     Json::Value operationObj;
@@ -81,6 +81,11 @@ void PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type, string& ou
 
     ReTypeId = static_cast<uint64_t>(type.getPluginTypeID());
     item["id"] = std::to_string(ReTypeId);
+
+    if (auto elemTy = type.dyn_cast<PluginIR::PluginPointerType>()) {
+        auto baseTy = elemTy.getElementType().dyn_cast<PluginIR::PluginTypeBase>();
+        item["elementType"] = TypeJsonSerialize(baseTy);
+    }
 
     if (type.getPluginIntOrFloatBitWidth() != 0) {
         ReTypeWidth = type.getPluginIntOrFloatBitWidth();
@@ -102,7 +107,7 @@ void PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type, string& ou
     }
 
     root["type"] = item;
-    out = root.toStyledString();
+    return root;
 }
 
 void PluginClient::FunctionOpJsonSerialize(vector<FunctionOp>& data, string& out)

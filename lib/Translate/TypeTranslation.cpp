@@ -95,6 +95,8 @@ private:
             return PluginBooleanType::get(&context);
         if (TREE_CODE(type) == VOID_TYPE)
             return PluginVoidType::get(&context);
+        if (TREE_CODE(type) == POINTER_TYPE)
+            return PluginPointerType::get(&context, translatePrimitiveType(TREE_TYPE(type)));
         return PluginUndefType::get(&context);
     }
 
