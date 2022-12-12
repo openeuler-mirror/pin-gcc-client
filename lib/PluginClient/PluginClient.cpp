@@ -575,6 +575,20 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         LoopOp loopFather = clientAPI.GetBlockLoopFather(blockId);
         LoopOpJsonSerialize(loopFather, result);
         this->ReceiveSendMsg("LoopOpResult", result);
+    } else if (funcName == "CreateBlock") {
+        /// Json格式
+        /// {
+        ///     "bbaddr":"xxxx",
+        ///     "funcaddr":"xxxx"
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t blockAddr = atol(root["bbaddr"].asString().c_str());
+        uint64_t funcAddr = atol(root["funcaddr"].asString().c_str());
+        uint64_t newBBAddr = clientAPI.CreateBlock(funcAddr, blockAddr);
+        BlockJsonSerialize(newBBAddr, result);
+        this->ReceiveSendMsg("BlockIdResult", result);
     } else if (funcName == "GetPhiOp") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();

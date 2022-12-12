@@ -41,6 +41,7 @@ public:
     BasicPluginOpsAPI() = default;
     virtual ~BasicPluginOpsAPI() = default;
 
+    virtual uint64_t CreateBlock(uint64_t, uint64_t) = 0;
     virtual vector<FunctionOp> GetAllFunc() = 0;
     virtual vector<LocalDeclOp> GetDecls(uint64_t funcID) = 0;
     virtual vector<LoopOp> GetLoopsFromFunc(uint64_t) = 0;
