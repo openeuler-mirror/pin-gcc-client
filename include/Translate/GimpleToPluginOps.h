@@ -49,6 +49,7 @@ public:
     ~GimpleToPluginOps ();
 
     /* ToPluginInterface */
+    uint64_t CreateBlock(uint64_t, uint64_t);
     vector<mlir::Plugin::FunctionOp> GetAllFunction();
     vector<mlir::Plugin::LocalDeclOp> GetAllDecls(uint64_t);
     vector<mlir::Plugin::LoopOp> GetAllLoops(uint64_t);

@@ -265,14 +265,6 @@ void PluginClient::BlocksJsonSerialize(vector<uint64_t>& blocks, string& out)
     out = root.toStyledString();
 }
 
-void PluginClient::BlockJsonSerialize(uint64_t block, string& out)
-{
-    Json::Value root;
-    Json::Value item;
-    root["id"] = std::to_string(block);
-    out = root.toStyledString();
-}
-
 void PluginClient::EdgesJsonSerialize(vector<pair<uint64_t, uint64_t> >& edges, string& out)
 {
     Json::Value root;
@@ -295,13 +287,6 @@ void PluginClient::EdgeJsonSerialize(pair<uint64_t, uint64_t>& edge, string& out
     Json::Value root;
     root["src"] = std::to_string(edge.first);
     root["dest"] = std::to_string(edge.second);
-    out = root.toStyledString();
-}
-
-void PluginClient::BoolResultJsonSerialize(bool res, string& out)
-{
-    Json::Value root;
-    root["result"] = std::to_string((int)res);
     out = root.toStyledString();
 }
 
@@ -454,8 +439,7 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         uint64_t loopId = atol(root[loopIdKey].asString().c_str());
         uint64_t blockId = atol(root[blockIdKey].asString().c_str());
         bool res = clientAPI.IsBlockInside(loopId, blockId);
-        BoolResultJsonSerialize(res, result);
-        this->ReceiveSendMsg("BoolResult", result);
+        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)res));
     } else if (funcName == "AllocateNewLoop") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();
@@ -509,7 +493,7 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         uint64_t loopId = atol(root[loopIdKey].asString().c_str());
         vector<uint64_t> blocks = clientAPI.GetBlocksInLoop(loopId);
         BlocksJsonSerialize(blocks, result);
-        this->ReceiveSendMsg("BlockIdsResult", result);
+        this->ReceiveSendMsg("IdsResult", result);
     } else if (funcName == "GetHeader") {
         /// Json格式
         /// {
@@ -521,8 +505,7 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         std::string loopIdKey = "loopId";
         uint64_t loopId = atol(root[loopIdKey].asString().c_str());
         uint64_t blockId = clientAPI.GetHeader(loopId);
-        BlockJsonSerialize(blockId, result);
-        this->ReceiveSendMsg("BlockIdResult", result);
+        this->ReceiveSendMsg("IdResult", std::to_string(blockId));
     } else if (funcName == "GetLatch") {
         /// Json格式
         /// {
@@ -534,8 +517,7 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         std::string loopIdKey = "loopId";
         uint64_t loopId = atol(root[loopIdKey].asString().c_str());
         uint64_t blockId = clientAPI.GetLatch(loopId);
-        BlockJsonSerialize(blockId, result);
-        this->ReceiveSendMsg("BlockIdResult", result);
+        this->ReceiveSendMsg("IdResult", std::to_string(blockId));
     } else if (funcName == "GetLoopExits") {
         /// Json格式
         /// {
@@ -575,6 +557,19 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         LoopOp loopFather = clientAPI.GetBlockLoopFather(blockId);
         LoopOpJsonSerialize(loopFather, result);
         this->ReceiveSendMsg("LoopOpResult", result);
+    } else if (funcName == "CreateBlock") {
+        /// Json格式
+        /// {
+        ///     "bbaddr":"xxxx",
+        ///     "funcaddr":"xxxx"
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t blockAddr = atol(root["bbaddr"].asString().c_str());
+        uint64_t funcAddr = atol(root["funcaddr"].asString().c_str());
+        uint64_t newBBAddr = clientAPI.CreateBlock(funcAddr, blockAddr);
+        this->ReceiveSendMsg("IdResult", std::to_string(newBBAddr));
     } else if (funcName == "GetPhiOp") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();
@@ -598,7 +593,7 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         uint64_t callId = atol(root["callId"].asString().c_str());
         uint64_t lhsId = atol(root["lhsId"].asString().c_str());
         bool ret = clientAPI.SetLhsInCallOp(callId, lhsId);
-        this->ReceiveSendMsg("BoolResult", std::to_string(ret));
+        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
     } else if (funcName == "CreateCondOp") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();

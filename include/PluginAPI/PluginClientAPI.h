@@ -33,6 +33,8 @@ public:
     PluginClientAPI () = default;
     ~PluginClientAPI () = default;
 
+    uint64_t CreateBlock(uint64_t, uint64_t) override;
+
     vector<FunctionOp> GetAllFunc() override;
     vector<LocalDeclOp> GetDecls(uint64_t funcID) override;
     vector<LoopOp> GetLoopsFromFunc(uint64_t) override;

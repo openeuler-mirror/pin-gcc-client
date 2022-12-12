@@ -163,6 +163,16 @@ static StringRef GimpleCodeToOperationName(enum gimple_code tcode)
     return ret;
 }
 
+uint64_t GimpleToPluginOps::CreateBlock(uint64_t funcAddr, uint64_t bbAddr)
+{
+    basic_block address = reinterpret_cast<basic_block>(bbAddr);
+    function *fn = reinterpret_cast<function *>(funcAddr);
+    push_cfun(fn);
+    uint64_t ret = reinterpret_cast<uint64_t>(create_empty_bb(address));
+    pop_cfun();
+    return ret;
+}
+
 vector<FunctionOp> GimpleToPluginOps::GetAllFunction()
 {
     cgraph_node *node = NULL;

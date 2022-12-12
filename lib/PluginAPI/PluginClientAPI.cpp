@@ -19,6 +19,11 @@
 #include "PluginAPI/PluginClientAPI.h"
 
 namespace PluginAPI {
+uint64_t PluginClientAPI::CreateBlock(uint64_t funcAddr, uint64_t bbAddr)
+{
+    return gimpleConversion.CreateBlock(funcAddr, bbAddr);
+}
+
 vector<FunctionOp> PluginClientAPI::GetAllFunc()
 {
     return gimpleConversion.GetAllFunction();
