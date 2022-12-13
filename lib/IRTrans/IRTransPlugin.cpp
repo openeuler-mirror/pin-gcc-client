@@ -240,12 +240,12 @@ int RegisterPassManagerSetup(InjectPoint inject, const ManagerSetupData& setupDa
             passInfo.pass = new GimplePass(passData);
             break;
         case PASS_SSA:
-            passData.type = RTL_PASS;
-            passInfo.pass = new RltPass(passData);
+            passData.type = GIMPLE_PASS;
+            passInfo.pass = new GimplePass(passData);
             break;
         case PASS_LOOP:
-            passData.type = SIMPLE_IPA_PASS;
-            passInfo.pass = new SimpleIPAPass(passData);
+            passData.type = GIMPLE_PASS;
+            passInfo.pass = new GimplePass(passData);
             break;
         default:
             passInfo.pass = new GimplePass(passData);
@@ -301,7 +301,6 @@ int plugin_init(struct plugin_name_args *pluginInfo, struct plugin_gcc_version *
     string port;
     int status;
     if (ServerStart(timeout, serverPath, g_serverPid, port, logLevel) != 0) {
-        LOGE("start server fail\n");
         return 0;
     }
     ClientStart(timeout, arg, pluginName, port);

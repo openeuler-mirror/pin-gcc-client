@@ -69,18 +69,20 @@ void PlaceholderOp::build(OpBuilder &builder, OperationState &state,
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addAttribute("defCode",
         builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
-    if (retType) state.addTypes(retType);
+    state.addTypes(retType);
 }
 
 //===----------------------------------------------------------------------===//
 // CallOp
 
-void CallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+void CallOp::build(OpBuilder &builder, OperationState &state,
                    uint64_t id, StringRef callee,
-                   ArrayRef<mlir::Value> arguments) {
+                   ArrayRef<Value> arguments, Type retType)
+{
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addOperands(arguments);
     state.addAttribute("callee", builder.getSymbolRefAttr(callee));
+    state.addTypes(retType);
 }
 
 /// Return the callee of the generic call operation, this is required by the
@@ -123,7 +125,7 @@ void PhiOp::build(OpBuilder &builder, OperationState &state,
     state.addAttribute("capacity", builder.getI32IntegerAttr(capacity));
     state.addAttribute("nArgs", builder.getI32IntegerAttr(nArgs));
     state.addOperands(operands);
-    if (resultType) state.addTypes(resultType);
+    state.addTypes(resultType);
 }
 
 //===----------------------------------------------------------------------===//
@@ -137,7 +139,7 @@ void AssignOp::build(OpBuilder &builder, OperationState &state,
     state.addAttribute("exprCode",
         builder.getI32IntegerAttr(static_cast<int32_t>(exprCode)));
     state.addOperands(operands);
-    if (resultType) state.addTypes(resultType);
+    state.addTypes(resultType);
 }
 
 /// The 'OpAsmParser' class provides a collection of methods for parsing

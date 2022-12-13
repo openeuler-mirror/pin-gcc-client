@@ -79,11 +79,24 @@ def IDefineCodeAttr  : I32EnumAttr<
 
 def IExprCodePlus    : I32EnumAttrCase<"Plus", 0>;
 def IExprCodeMinus   : I32EnumAttrCase<"Minus", 1>;
-def IExprCodeNop     : I32EnumAttrCase<"Nop", 2>;
-def IExprCodeUNDEF   : I32EnumAttrCase<"UNDEF", 3>;
+def IExprCodeMult    : I32EnumAttrCase<"Mult", 2>;
+def IExprCodePtrPlus : I32EnumAttrCase<"PtrPlus", 3>;
+def IExprCodeMin     : I32EnumAttrCase<"Min", 4>;
+def IExprCodeMax     : I32EnumAttrCase<"Max", 5>;
+def IExprCodeBitIOR  : I32EnumAttrCase<"BitIOR", 6>;
+def IExprCodeBitXOR  : I32EnumAttrCase<"BitXOR", 7>;
+def IExprCodeBitAND  : I32EnumAttrCase<"BitAND", 8>;
+def IExprCodeLshift  : I32EnumAttrCase<"Lshift", 9>;
+def IExprCodeRshift  : I32EnumAttrCase<"Rshift", 10>;
+def IExprCodeNop     : I32EnumAttrCase<"Nop", 11>;
+def IExprCodeUNDEF   : I32EnumAttrCase<"UNDEF", 12>;
 def IExprCodeAttr  : I32EnumAttr<
    "IExprCode", "plugin expr code",
-   [IExprCodePlus, IExprCodeMinus, IExprCodeNop, IExprCodeUNDEF]>{
+   [IExprCodePlus, IExprCodeMinus, IExprCodeMult,
+    IExprCodePtrPlus, IExprCodeMin, IExprCodeMax,
+    IExprCodeBitIOR, IExprCodeBitXOR, IExprCodeBitAND,
+    IExprCodeLshift, IExprCodeRshift, IExprCodeNop,
+    IExprCodeUNDEF]>{
   let cppNamespace = "::mlir::Plugin";
 }
 
