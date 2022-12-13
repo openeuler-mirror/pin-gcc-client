@@ -72,6 +72,7 @@ public:
     virtual PhiOp CreatePhiOp(uint64_t, uint64_t) = 0;
     virtual bool UpdateSSA() = 0;
     virtual vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) = 0;
+    virtual bool IsDomInfoAvailable() = 0;
 }; // class BasicPluginOpsAPI
 } // namespace PluginAPI
 

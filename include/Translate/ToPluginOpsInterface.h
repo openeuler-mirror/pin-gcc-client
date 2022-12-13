@@ -51,6 +51,7 @@ public:
     virtual LoopOp GetBlockLoopFather(uint64_t) = 0;
     virtual bool UpdateSSA() = 0;
     virtual vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t) = 0;
+    virtual bool IsDomInfoAvailable() = 0;
 
 };
 } // namespace PluginIR

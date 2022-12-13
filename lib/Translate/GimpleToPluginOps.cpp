@@ -46,6 +46,7 @@
 #include "cfgloop.h"
 #include "tree-cfg.h"
 #include "tree-into-ssa.h"
+#include "dominance.h"
 
 namespace PluginIR {
 using namespace mlir::Plugin;
@@ -844,6 +845,11 @@ vector<PhiOp> GimpleToPluginOps::GetPhiOpsInsideBlock(uint64_t bb)
         phiOps.push_back(phiOp);
     }
     return phiOps;
+}
+
+bool GimpleToPluginOps::IsDomInfoAvailable()
+{
+    return dom_info_available_p (CDI_DOMINATORS);
 }
 
 } // namespace PluginIR

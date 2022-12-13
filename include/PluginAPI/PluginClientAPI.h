@@ -68,6 +68,7 @@ public:
     PhiOp CreatePhiOp(uint64_t, uint64_t) override;
     bool UpdateSSA() override;
     vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) override;
+    bool IsDomInfoAvailable() override;
 
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;

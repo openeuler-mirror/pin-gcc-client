@@ -172,4 +172,9 @@ vector<mlir::Plugin::PhiOp> PluginClientAPI::GetPhiOpsInsideBlock(uint64_t bb)
     return gimpleConversion.GetPhiOpsInsideBlock(bb);
 }
 
+bool PluginClientAPI::IsDomInfoAvailable()
+{
+    return gimpleConversion.IsDomInfoAvailable();
+}
+
 } // namespace PluginAPI

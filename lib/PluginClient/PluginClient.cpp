@@ -768,6 +768,12 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         vector<PhiOp> phiOps = clientAPI.GetPhiOpsInsideBlock(bb);
         GetPhiOpsJsonSerialize(phiOps, result);
         this->ReceiveSendMsg("GetPhiOps", result);
+    } else if (funcName == "IsDomInfoAvailable") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        bool ret = clientAPI.IsDomInfoAvailable();
+        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
     } else {
         LOGW("function: %s not found!\n", funcName.c_str());
     }
