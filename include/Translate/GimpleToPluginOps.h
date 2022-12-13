@@ -74,6 +74,9 @@ public:
     PhiOp BuildPhiOp(uint64_t);
     mlir::Value GetGphiResult(uint64_t);
     mlir::Value TreeToValue(uint64_t);
+    bool UpdateSSA();
+    vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t);
+    void SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominated);
 
 private:
     GimpleToPluginOps () = delete;

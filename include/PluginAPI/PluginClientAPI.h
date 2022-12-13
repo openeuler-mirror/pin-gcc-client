@@ -56,6 +56,9 @@ public:
     /* Plugin API for CondOp. */
     uint64_t CreateCondOp(IComparisonCode, uint64_t, uint64_t) override;
     mlir::Value GetResultFromPhi(uint64_t) override;
+    bool UpdateSSA() override;
+    vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) override;
+    void SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominated) override;
 
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;

@@ -117,4 +117,19 @@ mlir::Value PluginClientAPI::GetResultFromPhi(uint64_t id)
     return gimpleConversion.GetGphiResult(id);
 }
 
+bool PluginClientAPI::UpdateSSA()
+{
+    return gimpleConversion.UpdateSSA();
+}
+
+vector<mlir::Plugin::PhiOp> PluginClientAPI::GetPhiOpsInsideBlock(uint64_t bb)
+{
+    return gimpleConversion.GetPhiOpsInsideBlock(bb);
+}
+
+void PluginClientAPI::SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominated)
+{
+    gimpleConversion.SetImmediateDominatorInBlock(bb, dominated);
+}
+
 } // namespace PluginAPI

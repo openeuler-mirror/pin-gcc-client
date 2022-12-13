@@ -45,6 +45,7 @@
 #include "langhooks.h"
 #include "cfgloop.h"
 #include "tree-cfg.h"
+#include "tree-into-ssa.h"
 
 namespace PluginIR {
 using namespace mlir::Plugin;
@@ -624,6 +625,35 @@ bool GimpleToPluginOps::ProcessBasicBlock(intptr_t bbPtr, Region& rg)
     // block->dump();
     // fprintf(stderr, "[bb%d] succ: %d\n", bb->index,block->getNumSuccessors());
     return true;
+}
+
+bool GimpleToPluginOps::UpdateSSA()
+{
+    update_ssa(TODO_update_ssa);
+    return true;
+}
+
+vector<PhiOp> GimpleToPluginOps::GetPhiOpsInsideBlock(uint64_t bb)
+{
+    basic_block header = reinterpret_cast<basic_block>(bb);
+    vector<PhiOp> phiOps;
+
+    gphi_iterator gsi;
+    for (gsi = gsi_start_phis(header); !gsi_end_p(gsi); gsi_next(&gsi)) {
+        gphi *phi = gsi.phi();
+        PhiOp phiOp;
+        uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(phi));
+        phiOp = BuildPhiOp(id);
+        phiOps.push_back(phiOp);
+    }
+    return phiOps;
+}
+
+void GimpleToPluginOps::SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominated)
+{
+    basic_block b = reinterpret_cast<basic_block>(bb);
+    basic_block dom = reinterpret_cast<basic_block>(dominated);
+    set_immediate_dominator(CDI_DOMINATORS, b, dom);
 }
 
 } // namespace PluginIR

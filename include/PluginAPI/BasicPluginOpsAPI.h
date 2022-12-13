@@ -61,6 +61,9 @@ public:
     virtual bool SetLhsInCallOp(uint64_t, uint64_t) = 0;
     virtual uint64_t CreateCondOp(IComparisonCode, uint64_t, uint64_t) = 0;
     virtual mlir::Value GetResultFromPhi(uint64_t) = 0;
+    virtual bool UpdateSSA() = 0;
+    virtual vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) = 0;
+    virtual void SetImmediateDominatorInBlock(uint64_t, uint64_t) = 0;
 }; // class BasicPluginOpsAPI
 } // namespace PluginAPI
 
