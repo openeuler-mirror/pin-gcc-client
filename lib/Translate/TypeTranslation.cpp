@@ -60,7 +60,6 @@ public:
     {
         tree node = reinterpret_cast<tree>(id);
         PluginTypeBase type = translatePrimitiveType (node);
-        type.setReadOnlyFlag (getReadOnlyFlag (node));
         return type;
     }
 
@@ -76,11 +75,6 @@ private:
         if (TYPE_UNSIGNED (type))
             return true;
         return false;
-    }
-    
-    unsigned getReadOnlyFlag (tree type)
-    {
-        return TYPE_READONLY (type);
     }
 
     /* Translates the given primitive, i.e. non-parametric in MLIR nomenclature,
@@ -104,6 +98,87 @@ private:
     mlir::MLIRContext &context;
 };
 
+/* Support for translating MLIR Plugin dialect types to Plugin IR types . */
+class TypeToPluginIRTranslatorImpl {
+public:
+    TypeToPluginIRTranslatorImpl() {}
+
+    uintptr_t translateType (PluginTypeBase type)
+    {
+        tree node = translatePrimitiveType (type);
+        assert(node!=NULL);
+        return reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(node));
+    }
+
+private:
+    unsigned getBitWidth (PluginIntegerType type)
+    {
+        return type.getWidth();
+    }
+
+    bool isUnsigned (PluginIntegerType type)
+    {
+        if(type.isUnsigned())
+            return true;
+        return false;
+    }
+
+    tree translatePrimitiveType (PluginTypeBase type)
+    {
+        if (auto Ty = type.dyn_cast<PluginIntegerType>()) {
+            if (isUnsigned(Ty)) {
+                switch (getBitWidth(Ty)) {
+                    case 8:
+                        return unsigned_char_type_node;
+                    case 16:
+                        return short_unsigned_type_node;
+                    case 32:
+                        return unsigned_type_node;
+                    case 64:
+                        return long_unsigned_type_node;
+                    default:
+                        return NULL;
+                }
+            } else {
+                switch (getBitWidth(Ty)) {
+                    case 8:
+                        return signed_char_type_node;
+                    case 16:
+                        return short_integer_type_node;
+                    case 32:
+                        return integer_type_node;
+                    case 64:
+                        return long_integer_type_node;
+                    default:
+                        return NULL;
+                }
+            }
+        }
+        if (auto Ty = type.dyn_cast<PluginFloatType>()) {
+            if (Ty.getWidth() == 32) {
+                return float_type_node;
+            } else if (Ty.getWidth() == 64) {
+                return double_type_node;
+            }
+            return NULL;
+        }
+        if (auto Ty = type.dyn_cast<PluginBooleanType>()) {
+            return boolean_type_node;
+        }
+        if (auto Ty = type.dyn_cast<PluginVoidType>()) {
+            return void_type_node;
+        }
+        if (auto Ty = type.dyn_cast<PluginPointerType>()) {
+            mlir::Type elmType = Ty.getElementType();
+            auto ty = elmType.dyn_cast<PluginTypeBase>();
+            tree elmTy = translatePrimitiveType(ty);
+            return build_pointer_type(elmTy);
+        }
+        return NULL;
+    }
+
+};
+
 } // namespace detail
 } // namespace PluginIR
 
@@ -125,4 +200,15 @@ PluginIR::PluginTypeID PluginIR::TypeFromPluginIRTranslator::getPluginTypeId(Plu
 uint64_t PluginIR::TypeFromPluginIRTranslator::getBitWidth(PluginTypeBase type)
 {
     return type.getPluginIntOrFloatBitWidth ();
+}
+
+
+PluginIR::TypeToPluginIRTranslator::TypeToPluginIRTranslator()
+    : impl(new detail::TypeToPluginIRTranslatorImpl()) {}
+
+PluginIR::TypeToPluginIRTranslator::~TypeToPluginIRTranslator() {}
+
+uintptr_t PluginIR::TypeToPluginIRTranslator::translateType(PluginIR::PluginTypeBase type)
+{
+    return impl->translateType(type);
 }
