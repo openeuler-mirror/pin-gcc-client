@@ -228,6 +228,57 @@ uint64_t GimpleToPluginOps::CreateBlock(uint64_t funcAddr, uint64_t bbAddr)
     return ret;
 }
 
+void GimpleToPluginOps::DeleteBlock(uint64_t funcAddr, uint64_t bbAddr)
+{
+    basic_block address = reinterpret_cast<basic_block>(bbAddr);
+    function *fn = reinterpret_cast<function *>(funcAddr);
+    push_cfun(fn);
+    delete_basic_block(address);
+    pop_cfun();
+}
+
+void GimpleToPluginOps::SetImmediateDominator(uint64_t dir, uint64_t bbAddr,
+                                              uint64_t domiAddr)
+{
+    basic_block bb = reinterpret_cast<basic_block>(bbAddr);
+    basic_block dominated = reinterpret_cast<basic_block>(domiAddr);
+    if (dir == 1) {
+        set_immediate_dominator(CDI_DOMINATORS, bb, dominated);
+    } else if (dir == 2) {
+        set_immediate_dominator(CDI_POST_DOMINATORS, bb, dominated);
+    } else {
+        abort();
+    }
+}
+
+uint64_t GimpleToPluginOps::GetImmediateDominator(uint64_t dir, uint64_t bbAddr)
+{
+    basic_block bb = reinterpret_cast<basic_block>(bbAddr);
+    if (dir == 1) {
+        basic_block res = get_immediate_dominator(CDI_DOMINATORS, bb);
+        return reinterpret_cast<uint64_t>(res);
+    } else if (dir == 2) {
+        basic_block res = get_immediate_dominator(CDI_POST_DOMINATORS, bb);
+        return reinterpret_cast<uint64_t>(res);
+    }
+
+    abort();
+}
+
+uint64_t GimpleToPluginOps::RecomputeDominator(uint64_t dir, uint64_t bbAddr)
+{
+    basic_block bb = reinterpret_cast<basic_block>(bbAddr);
+    if (dir == 1) {
+        basic_block res = recompute_dominator(CDI_DOMINATORS, bb);
+        return reinterpret_cast<uint64_t>(res);
+    } else if (dir == 2) {
+        basic_block res = recompute_dominator(CDI_POST_DOMINATORS, bb);
+        return reinterpret_cast<uint64_t>(res);
+    }
+
+    abort();
+}
+
 vector<FunctionOp> GimpleToPluginOps::GetAllFunction()
 {
     cgraph_node *node = NULL;
@@ -793,13 +844,6 @@ vector<PhiOp> GimpleToPluginOps::GetPhiOpsInsideBlock(uint64_t bb)
         phiOps.push_back(phiOp);
     }
     return phiOps;
-}
-
-void GimpleToPluginOps::SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominated)
-{
-    basic_block b = reinterpret_cast<basic_block>(bb);
-    basic_block dom = reinterpret_cast<basic_block>(dominated);
-    set_immediate_dominator(CDI_DOMINATORS, b, dom);
 }
 
 } // namespace PluginIR

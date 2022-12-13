@@ -50,6 +50,10 @@ public:
 
     /* ToPluginInterface */
     uint64_t CreateBlock(uint64_t, uint64_t);
+    void DeleteBlock(uint64_t, uint64_t);
+    void SetImmediateDominator(uint64_t, uint64_t, uint64_t);
+    uint64_t GetImmediateDominator(uint64_t, uint64_t);
+    uint64_t RecomputeDominator(uint64_t, uint64_t);
     vector<mlir::Plugin::FunctionOp> GetAllFunction();
     vector<mlir::Plugin::LocalDeclOp> GetAllDecls(uint64_t);
     vector<mlir::Plugin::LoopOp> GetAllLoops(uint64_t);
@@ -80,7 +84,6 @@ public:
     mlir::Value TreeToValue(uint64_t);
     bool UpdateSSA();
     vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t);
-    void SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominated);
 
 private:
     GimpleToPluginOps () = delete;

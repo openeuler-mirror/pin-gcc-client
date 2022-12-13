@@ -51,7 +51,6 @@ public:
     virtual LoopOp GetBlockLoopFather(uint64_t) = 0;
     virtual bool UpdateSSA() = 0;
     virtual vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t) = 0;
-    virtual void SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominated) = 0;
 
 };
 } // namespace PluginIR

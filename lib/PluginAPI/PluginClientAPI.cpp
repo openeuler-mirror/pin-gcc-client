@@ -24,6 +24,27 @@ uint64_t PluginClientAPI::CreateBlock(uint64_t funcAddr, uint64_t bbAddr)
     return gimpleConversion.CreateBlock(funcAddr, bbAddr);
 }
 
+void PluginClientAPI::DeleteBlock(uint64_t funcAddr, uint64_t bbAddr)
+{
+    gimpleConversion.DeleteBlock(funcAddr, bbAddr);
+}
+
+void PluginClientAPI::SetImmediateDominator(uint64_t dir, uint64_t bbAddr,
+                                            uint64_t domiAddr)
+{
+    gimpleConversion.SetImmediateDominator(dir, bbAddr, domiAddr);
+}
+
+uint64_t PluginClientAPI::GetImmediateDominator(uint64_t dir, uint64_t bbAddr)
+{
+    return gimpleConversion.GetImmediateDominator(dir, bbAddr);
+}
+
+uint64_t PluginClientAPI::RecomputeDominator(uint64_t dir, uint64_t bbAddr)
+{
+    return gimpleConversion.RecomputeDominator(dir, bbAddr);
+}
+
 vector<FunctionOp> PluginClientAPI::GetAllFunc()
 {
     return gimpleConversion.GetAllFunction();
@@ -151,8 +172,4 @@ vector<mlir::Plugin::PhiOp> PluginClientAPI::GetPhiOpsInsideBlock(uint64_t bb)
     return gimpleConversion.GetPhiOpsInsideBlock(bb);
 }
 
-void PluginClientAPI::SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominated)
-{
-    gimpleConversion.SetImmediateDominatorInBlock(bb, dominated);
-}
 } // namespace PluginAPI
