@@ -191,7 +191,7 @@ public:
     {
         return grpcPort;
     }
-    void TimerInit(void);
+    bool TimerInit(void);
     void TimerStart(int interval);
     /* 保存注入点和函数名信息,value格式为 注入点:函数名称 */
     int AddRegisteredUserFunc(const string& value);
