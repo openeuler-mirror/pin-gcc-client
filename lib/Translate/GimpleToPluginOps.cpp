@@ -117,6 +117,7 @@ static enum tree_code TranslateCmpCodeToTreeCode(IComparisonCode iCode)
             printf("tcc_comparison not suppoted!\n");
 	        break;
     }
+    // FIXME.
     return LT_EXPR;
 }
 
@@ -127,6 +128,24 @@ static IExprCode TranslateExprCode(enum tree_code ccode)
             return IExprCode::Plus;
         case MINUS_EXPR:
             return IExprCode::Minus;
+        case MULT_EXPR:
+            return IExprCode::Mult;
+        case POINTER_PLUS_EXPR:
+            return IExprCode::PtrPlus;
+        case MIN_EXPR:
+            return IExprCode::Min;
+        case MAX_EXPR:
+            return IExprCode::Max;
+        case BIT_IOR_EXPR:
+            return IExprCode::BitIOR;
+        case BIT_XOR_EXPR:
+            return IExprCode::BitXOR;
+        case BIT_AND_EXPR:
+            return IExprCode::BitAND;
+        case LSHIFT_EXPR:
+            return IExprCode::Lshift;
+        case RSHIFT_EXPR:
+            return IExprCode::Rshift;
         case NOP_EXPR:
             return IExprCode::Nop;
         default:
@@ -134,6 +153,41 @@ static IExprCode TranslateExprCode(enum tree_code ccode)
 	        break;
     }
     return IExprCode::UNDEF;
+}
+
+static enum tree_code TranslateExprCodeToTreeCode(IExprCode ccode)
+{
+    switch (ccode) {
+        case IExprCode::Plus:
+            return PLUS_EXPR;
+        case IExprCode::Minus:
+            return MINUS_EXPR;
+        case IExprCode::Mult:
+            return MULT_EXPR;
+        case IExprCode::PtrPlus:
+            return POINTER_PLUS_EXPR;
+        case IExprCode::Min:
+            return MIN_EXPR;
+        case IExprCode::Max:
+            return MAX_EXPR;
+        case IExprCode::BitIOR:
+            return BIT_IOR_EXPR;
+        case IExprCode::BitXOR:
+            return BIT_XOR_EXPR;
+        case IExprCode::BitAND:
+            return BIT_AND_EXPR;
+        case IExprCode::Lshift:
+            return LSHIFT_EXPR;
+        case IExprCode::Rshift:
+            return RSHIFT_EXPR;
+        case IExprCode::Nop:
+            return NOP_EXPR;
+        default:
+            // printf("tcc_binary: %d not suppoted!\n", ccode);
+	        break;
+    }
+    // FIXME.
+    return NOP_EXPR;
 }
 
 static StringRef GimpleCodeToOperationName(enum gimple_code tcode)
@@ -432,6 +486,18 @@ PhiOp GimpleToPluginOps::BuildPhiOp(uint64_t gphiId)
     return ret;
 }
 
+uint64_t GimpleToPluginOps::CreateGphiNode(uint64_t argId, uint64_t blockId)
+{
+    tree arg = NULL_TREE;
+    if (argId != 0) {
+        tree *argPtr = reinterpret_cast<tree*>(argId);
+        arg = *argPtr;
+    }
+    basic_block *bb = reinterpret_cast<basic_block*>(blockId);
+    gphi *ret = create_phi_node(arg, *bb);
+    return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
+}
+
 CallOp GimpleToPluginOps::BuildCallOp(uint64_t gcallId)
 {
     gcall *stmt = reinterpret_cast<gcall*>(gcallId);
@@ -451,7 +517,8 @@ CallOp GimpleToPluginOps::BuildCallOp(uint64_t gcallId)
     StringRef callName(IDENTIFIER_POINTER(DECL_NAME(fndecl)));
     tree returnType = gimple_call_return_type(stmt);
     PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
-    CallOp ret = builder.create<CallOp>(builder.getUnknownLoc(), gcallId, callName, ops);
+    CallOp ret = builder.create<CallOp>(builder.getUnknownLoc(),
+                                        gcallId, callName, ops, rPluginType);
     return ret;
 }
 
@@ -463,13 +530,91 @@ bool GimpleToPluginOps::SetGimpleCallLHS(uint64_t callId, uint64_t lhsId)
     return true;
 }
 
-uint64_t GimpleToPluginOps::CreateGcond(IComparisonCode iCode,
+uint64_t GimpleToPluginOps::CreateGcallVec(uint64_t blockId, uint64_t funcId,
+                                           vector<uint64_t> &argIds)
+{
+    tree *fn = reinterpret_cast<tree*>(funcId);
+    auto_vec<tree> vargs (argIds.size());
+    for (auto id : argIds) {
+        tree *arg = reinterpret_cast<tree*>(id);
+        vargs.quick_push (*arg);
+    }
+    gcall *ret = gimple_build_call_vec (*fn, vargs);
+    basic_block *bb = reinterpret_cast<basic_block*>(blockId);
+    if (bb != nullptr) {
+        gimple_stmt_iterator si;
+        si = gsi_last_bb (*bb);
+        gsi_insert_after (&si, ret, GSI_NEW_STMT);
+    }
+    return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
+}
+
+bool GimpleToPluginOps::AddPhiArg(uint64_t phiId, uint64_t argId,
+                                  uint64_t predId, uint64_t succId)
+{
+    gphi *phi = reinterpret_cast<gphi*>(phiId);
+    tree *arg = reinterpret_cast<tree*>(argId);
+    basic_block *pred = reinterpret_cast<basic_block*>(predId);
+    basic_block *succ = reinterpret_cast<basic_block*>(succId);
+    edge e = find_edge(*pred, *succ);
+    location_t loc;
+    tree var = *arg;
+    if (virtual_operand_p (var))
+    loc = UNKNOWN_LOCATION;
+    else
+    loc = gimple_location (SSA_NAME_DEF_STMT (var));
+    add_phi_arg (phi, var, e, loc);
+    return true;
+}
+
+uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
+                                          vector<uint64_t> &argIds)
+{
+    vector<tree> vargs (argIds.size());
+    for (auto id : argIds) {
+        tree *arg = reinterpret_cast<tree*>(id);
+        vargs.push_back (*arg);
+    }
+    gassign *ret;
+    if (vargs.size() == 2) {
+        if (iCode == IExprCode::UNDEF) {
+            ret = gimple_build_assign(vargs[0], vargs[1]);
+        } else {
+            ret = gimple_build_assign(vargs[0],
+                                      TranslateExprCodeToTreeCode(iCode),
+                                      vargs[1]);
+        }
+    } else if (vargs.size() == 3) {
+        ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode),
+                                  vargs[1], vargs[2]);
+    } else if (vargs.size() == 4) {
+        ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode),
+                                  vargs[1], vargs[2], vargs[3]);
+    } else {
+        printf("ERROR.\n");
+    }
+    basic_block *bb = reinterpret_cast<basic_block*>(blockId);
+    if (bb != nullptr) {
+        gimple_stmt_iterator si;
+        si = gsi_last_bb (*bb);
+        gsi_insert_after (&si, ret, GSI_NEW_STMT);
+    }
+    return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
+}
+
+uint64_t GimpleToPluginOps::CreateGcond(uint64_t blockId, IComparisonCode iCode,
                                         uint64_t lhsId, uint64_t rhsId)
 {
     tree *lhs = reinterpret_cast<tree*>(lhsId);
     tree *rhs = reinterpret_cast<tree*>(rhsId);
     gcond *ret = gimple_build_cond (TranslateCmpCodeToTreeCode(iCode),
                                     *lhs, *rhs, NULL_TREE, NULL_TREE);
+    basic_block *bb = reinterpret_cast<basic_block*>(blockId);
+    if (bb != nullptr) {
+        gimple_stmt_iterator si;
+        si = gsi_last_bb (*bb);
+        gsi_insert_after (&si, ret, GSI_NEW_STMT);
+    }
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
 }
 
@@ -517,9 +662,10 @@ AssignOp GimpleToPluginOps::BuildAssignOp(uint64_t gassignId)
         ops.push_back(TreeToValue(rhs3Id));
     }
     IExprCode iCode = TranslateExprCode(gimple_assign_rhs_code(stmt));
-    mlir::Type returnType = nullptr;
+    tree returnType = TREE_TYPE(gimple_assign_lhs(stmt));
+    PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
     AssignOp ret = builder.create<AssignOp>(
-            builder.getUnknownLoc(), gassignId, iCode, ops, returnType);
+            builder.getUnknownLoc(), gassignId, iCode, ops, rPluginType);
     return ret;
 }
 

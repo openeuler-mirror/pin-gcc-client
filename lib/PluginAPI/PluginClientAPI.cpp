@@ -106,15 +106,39 @@ bool PluginClientAPI::SetLhsInCallOp(uint64_t callId, uint64_t lhsId)
     return gimpleConversion.SetGimpleCallLHS(callId, lhsId);
 }
 
-uint64_t PluginClientAPI::CreateCondOp(IComparisonCode iCode,
+bool PluginClientAPI::AddArgInPhiOp(uint64_t phiId, uint64_t argId,
+                                    uint64_t predId, uint64_t succId)
+{
+    return gimpleConversion.AddPhiArg(phiId, argId, predId, succId);
+}
+
+uint64_t PluginClientAPI::CreateCallOp(uint64_t blockId, uint64_t funcId,
+                                       vector<uint64_t> &argIds)
+{
+    return gimpleConversion.CreateGcallVec(blockId, funcId, argIds);
+}
+
+uint64_t PluginClientAPI::CreateAssignOp(uint64_t blockId, IExprCode iCode,
+                                         vector<uint64_t> &argIds)
+{
+    return gimpleConversion.CreateGassign(blockId, iCode, argIds);
+}
+
+uint64_t PluginClientAPI::CreateCondOp(uint64_t blockId, IComparisonCode iCode,
                                        uint64_t LHS, uint64_t RHS)
 {
-    return gimpleConversion.CreateGcond(iCode, LHS, RHS);
+    return gimpleConversion.CreateGcond(blockId, iCode, LHS, RHS);
 }
 
 mlir::Value PluginClientAPI::GetResultFromPhi(uint64_t id)
 {
     return gimpleConversion.GetGphiResult(id);
+}
+
+PhiOp PluginClientAPI::CreatePhiOp(uint64_t argId, uint64_t blockId)
+{
+    uint64_t id = gimpleConversion.CreateGphiNode(argId, blockId);
+    return gimpleConversion.BuildPhiOp(id);
 }
 
 bool PluginClientAPI::UpdateSSA()
@@ -131,5 +155,4 @@ void PluginClientAPI::SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominat
 {
     gimpleConversion.SetImmediateDominatorInBlock(bb, dominated);
 }
-
 } // namespace PluginAPI

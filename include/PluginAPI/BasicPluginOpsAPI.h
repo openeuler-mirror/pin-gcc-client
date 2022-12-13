@@ -59,8 +59,13 @@ public:
     virtual PhiOp GetPhiOp(uint64_t) = 0;
     virtual CallOp GetCallOp(uint64_t) = 0;
     virtual bool SetLhsInCallOp(uint64_t, uint64_t) = 0;
-    virtual uint64_t CreateCondOp(IComparisonCode, uint64_t, uint64_t) = 0;
+    virtual uint64_t CreateCallOp(uint64_t, uint64_t, vector<uint64_t> &) = 0;
+    virtual uint64_t CreateCondOp(uint64_t, IComparisonCode, uint64_t, uint64_t) = 0;
     virtual mlir::Value GetResultFromPhi(uint64_t) = 0;
+
+    virtual uint64_t CreateAssignOp(uint64_t, IExprCode, vector<uint64_t> &) = 0;
+    virtual bool AddArgInPhiOp(uint64_t, uint64_t, uint64_t, uint64_t) = 0;
+    virtual PhiOp CreatePhiOp(uint64_t, uint64_t) = 0;
     virtual bool UpdateSSA() = 0;
     virtual vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) = 0;
     virtual void SetImmediateDominatorInBlock(uint64_t, uint64_t) = 0;

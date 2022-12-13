@@ -31,6 +31,7 @@
 #include <sys/socket.h>
 #include <sys/file.h>
 #include <unistd.h>
+#include <json/json.h>
 
 namespace PinClient {
 using namespace mlir::Plugin;
@@ -325,6 +326,8 @@ Json::Value PluginClient::CallOpJsonSerialize(CallOp& data)
         item["operands"][input]["id"] = std::to_string(phOp.idAttr().getInt());
         item["operands"][input]["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
     }
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    item["retType"] = TypeJsonSerialize(retTy);
     return item;
 }
 
@@ -355,6 +358,8 @@ Json::Value PluginClient::PhiOpJsonSerialize(PhiOp& data)
         item["operands"][input]["id"] = std::to_string(phOp.idAttr().getInt());
         item["operands"][input]["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
     }
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    item["retType"] = TypeJsonSerialize(retTy);
     return item;
 }
 
@@ -370,6 +375,8 @@ Json::Value PluginClient::AssignOpJsonSerialize(AssignOp& data)
         item["operands"][input]["id"] = std::to_string(phOp.idAttr().getInt());
         item["operands"][input]["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
     }
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    item["retType"] = TypeJsonSerialize(retTy);
     return item;
 }
 
@@ -379,6 +386,8 @@ Json::Value PluginClient::ValueJsonSerialize(mlir::Value data)
     if (PlaceholderOp phOp = data.getDefiningOp<PlaceholderOp>()) {
         root["id"] = std::to_string(phOp.idAttr().getInt());
         root["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
+        auto retTy = phOp.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+        root["retType"] = TypeJsonSerialize(retTy);
     } else {
         LOGE("ERROR: Can't Serialize!");
     }
@@ -609,15 +618,61 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         uint64_t callId = atol(root["callId"].asString().c_str());
         uint64_t lhsId = atol(root["lhsId"].asString().c_str());
         bool ret = clientAPI.SetLhsInCallOp(callId, lhsId);
-        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
+        this->ReceiveSendMsg("BoolResult", std::to_string(ret));
+    } else if (funcName == "AddArgInPhiOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t phiId = atol(root["phiId"].asString().c_str());
+        uint64_t argId = atol(root["argId"].asString().c_str());
+        uint64_t predId = atol(root["predId"].asString().c_str());
+        uint64_t succId = atol(root["succId"].asString().c_str());
+        bool ret = clientAPI.AddArgInPhiOp(phiId, argId, predId, succId);
+        this->ReceiveSendMsg("BoolResult", std::to_string(ret));
+    } else if (funcName == "CreateCallOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t blockId = atol(root["blockId"].asString().c_str());
+        uint64_t funcId = atol(root["funcId"].asString().c_str());
+        vector<uint64_t> argIds;
+        Json::Value argIdsJson = root["argIds"];
+        Json::Value::Members member = argIdsJson.getMemberNames();
+        for (Json::Value::Members::iterator opIter = member.begin();
+             opIter != member.end(); opIter++) {
+            string key = *opIter;
+            uint64_t id = atol(argIdsJson[key.c_str()].asString().c_str());
+            argIds.push_back(id);
+        }
+        uint64_t ret = clientAPI.CreateCallOp(blockId, funcId, argIds);
+        this->ReceiveSendMsg("IdResult", std::to_string(ret));
+    } else if (funcName == "CreateAssignOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t blockId = atol(root["blockId"].asString().c_str());
+        int condCode = atol(root["exprCode"].asString().c_str());
+        vector<uint64_t> argIds;
+        Json::Value argIdsJson = root["argIds"];
+        Json::Value::Members member = argIdsJson.getMemberNames();
+        for (Json::Value::Members::iterator opIter = member.begin();
+             opIter != member.end(); opIter++) {
+            string key = *opIter;
+            uint64_t id = atol(argIdsJson[key.c_str()].asString().c_str());
+            argIds.push_back(id);
+        }
+        uint64_t ret = clientAPI.CreateAssignOp(
+                blockId, IExprCode(condCode), argIds);
+        this->ReceiveSendMsg("IdResult", std::to_string(ret));
     } else if (funcName == "CreateCondOp") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();
         PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t blockId = atol(root["blockId"].asString().c_str());
         int condCode = atol(root["condCode"].asString().c_str());
         uint64_t lhsId = atol(root["lhsId"].asString().c_str());
         uint64_t rhsId = atol(root["rhsId"].asString().c_str());
-        uint64_t ret = clientAPI.CreateCondOp(IComparisonCode(condCode),
+        uint64_t ret = clientAPI.CreateCondOp(blockId, IComparisonCode(condCode),
                                               lhsId, rhsId);
         this->ReceiveSendMsg("IdResult", std::to_string(ret));
     } else if (funcName == "GetResultFromPhi") {
@@ -626,7 +681,17 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         PluginAPI::PluginClientAPI clientAPI(context);
         uint64_t id = atol(root["id"].asString().c_str());
         mlir::Value ret = clientAPI.GetResultFromPhi(id);
-        this->ReceiveSendMsg("ValueResult", ValueJsonSerialize(ret).toStyledString());
+        this->ReceiveSendMsg("ValueResult",
+                             ValueJsonSerialize(ret).toStyledString());
+    } else if (funcName == "CreatePhiOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t argId = atol(root["argId"].asString().c_str());
+        uint64_t blockId = atol(root["blockId"].asString().c_str());
+        PhiOp op = clientAPI.CreatePhiOp(argId, blockId);
+        Json::Value result = PhiOpJsonSerialize(op);
+        this->ReceiveSendMsg("OpsResult", result.toStyledString());
     } else if (funcName == "UpdateSSA") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();
@@ -684,6 +749,10 @@ int PluginClient::GetInitInfo(string& serverPath, string& shaPath, int& timeout)
     ifs.close();
 
     if (serverPath == "") {
+        if (!root["path"].isString()) {
+            LOGE("path in config.json is not string\n");
+            return 0;
+        }
         serverPath = root["path"].asString();
         int index = serverPath.find_last_of("/");
         serverDir = serverPath.substr(0, index);
@@ -709,6 +778,7 @@ void PluginClient::GetArg(struct plugin_name_args *pluginInfo, string& serverPat
     string& arg, LogPriority& logLevel)
 {
     Json::Value root;
+    map<string, string> compileArgs;
     for (int i = 0; i < pluginInfo->argc; i++) {
         string key = pluginInfo->argv[i].key;
         if (key == "server_path") {
@@ -718,11 +788,14 @@ void PluginClient::GetArg(struct plugin_name_args *pluginInfo, string& serverPat
             SetLogPriority(logLevel);
         } else {
             string value = pluginInfo->argv[i].value;
-            CheckSafeCompileFlag(key, value);
+            compileArgs[key] = value;
             root[key] = value;
         }
     }
     arg = root.toStyledString();
+    for (auto it = compileArgs.begin(); it != compileArgs.end(); it++) {
+        CheckSafeCompileFlag(it->first, it->second);
+    }
 }
 
 int PluginClient::CheckSHA256(const string& shaPath)
@@ -908,7 +981,7 @@ void PluginClient::TimerStart(int interval)
     timer_settime(timerId, 0, &time_value, NULL);
 }
 
-void PluginClient::TimerInit(void)
+bool PluginClient::TimerInit(void)
 {
     struct sigevent evp;
     int sival = 124; // 传递整型参数，可以自定义
@@ -920,7 +993,9 @@ void PluginClient::TimerInit(void)
     
     if (timer_create(CLOCK_REALTIME, &evp, &timerId) == -1) {
         LOGE("timer create fail\n");
+        return false;
     }
+    return true;
 }
 
 int PluginClient::OpenLockFile(const char *path)
@@ -1002,10 +1077,10 @@ int ServerStart(int timeout, const string& serverPath, pid_t& pid, string& port,
 {
     unsigned short portNum = PluginClient::FindUnusedPort();
     if (portNum == 0) {
-        LOGE("cannot find port for grpc\n");
+        LOGE("cannot find port for grpc,port 40001-65535 all used!\n");
         return -1;
     }
-
+    int ret = 0;
     port = std::to_string(portNum);
     pid = vfork();
     if (pid == 0) {
@@ -1014,13 +1089,15 @@ int ServerStart(int timeout, const string& serverPath, pid_t& pid, string& port,
         if (execl(serverPath.c_str(), paramTimeout.c_str(), port.c_str(),
             std::to_string(logLevel).c_str(), NULL) == -1) {
             PluginClient::DeletePortFromLockFile(portNum);
-            LOGE("server start fail! serverPath:%s\n", serverPath.c_str());
+            LOGE("server start fail! please check serverPath:%s\n", serverPath.c_str());
+            ret = -1;
             _exit(0);
         }
     }
     int delay = 500000; // 500ms
     usleep(delay); // wait server start
-    return 0;
+
+    return ret;
 }
 
 int ClientStart(int timeout, const string& arg, const string& pluginName, const string& port)
@@ -1031,7 +1108,10 @@ int ClientStart(int timeout, const string& arg, const string& pluginName, const 
     g_plugin->SetInjectFlag(false);
     g_plugin->SetTimeout(timeout);
     g_plugin->SetUserFuncState(STATE_WAIT_BEGIN);
-    g_plugin->TimerInit();
+
+    if (!g_plugin->TimerInit()) {
+        return 0;
+    }
     unsigned short grpcPort = (unsigned short)atoi(port.c_str());
     g_plugin->SetGrpcPort(grpcPort);
     g_plugin->ReceiveSendMsg("start", arg);

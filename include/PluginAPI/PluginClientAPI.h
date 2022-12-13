@@ -53,9 +53,15 @@ public:
     CallOp GetCallOp(uint64_t) override;
     /* Plugin API for CallOp. */
     bool SetLhsInCallOp(uint64_t, uint64_t) override;
+    uint64_t CreateCallOp(uint64_t, uint64_t, vector<uint64_t> &) override;
     /* Plugin API for CondOp. */
-    uint64_t CreateCondOp(IComparisonCode, uint64_t, uint64_t) override;
+    uint64_t CreateCondOp(uint64_t, IComparisonCode, uint64_t, uint64_t) override;
     mlir::Value GetResultFromPhi(uint64_t) override;
+    /* Plugin API for AssignOp. */
+    uint64_t CreateAssignOp(uint64_t, IExprCode, vector<uint64_t> &) override;
+    /* Plugin API for PhiOp. */
+    bool AddArgInPhiOp(uint64_t, uint64_t, uint64_t, uint64_t) override;
+    PhiOp CreatePhiOp(uint64_t, uint64_t) override;
     bool UpdateSSA() override;
     vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) override;
     void SetImmediateDominatorInBlock(uint64_t bb, uint64_t dominated) override;
