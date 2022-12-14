@@ -77,7 +77,8 @@ public:
     uint64_t CreateGphiNode(uint64_t, uint64_t);
     FunctionOp BuildFunctionOp(uint64_t);
     Operation *BuildOperation(uint64_t);
-    CondOp BuildCondOp(uint64_t, uint64_t, Block*, Block*, uint64_t, uint64_t);
+    uint64_t CreateGcond(uint64_t, IComparisonCode, uint64_t, uint64_t, uint64_t, uint64_t);
+    void CreateFallthroughOp(uint64_t, uint64_t);
     AssignOp BuildAssignOp(uint64_t);
     PhiOp BuildPhiOp(uint64_t);
     mlir::Value GetGphiResult(uint64_t);

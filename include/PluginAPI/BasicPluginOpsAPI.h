@@ -66,7 +66,8 @@ public:
     virtual CallOp GetCallOp(uint64_t) = 0;
     virtual bool SetLhsInCallOp(uint64_t, uint64_t) = 0;
     virtual uint64_t CreateCallOp(uint64_t, uint64_t, vector<uint64_t> &) = 0;
-    virtual uint64_t CreateCondOp(uint64_t, IComparisonCode, uint64_t, uint64_t) = 0;
+    virtual uint64_t CreateCondOp(uint64_t, IComparisonCode, uint64_t, uint64_t, uint64_t, uint64_t) = 0;
+    virtual void CreateFallthroughOp(uint64_t, uint64_t) = 0;
     virtual mlir::Value GetResultFromPhi(uint64_t) = 0;
 
     virtual uint64_t CreateAssignOp(uint64_t, IExprCode, vector<uint64_t> &) = 0;

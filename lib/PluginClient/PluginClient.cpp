@@ -797,9 +797,20 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         int condCode = atol(root["condCode"].asString().c_str());
         uint64_t lhsId = atol(root["lhsId"].asString().c_str());
         uint64_t rhsId = atol(root["rhsId"].asString().c_str());
+        uint64_t tbaddr = atol(root["tbaddr"].asString().c_str());
+        uint64_t fbaddr = atol(root["fbaddr"].asString().c_str());
         uint64_t ret = clientAPI.CreateCondOp(blockId, IComparisonCode(condCode),
-                                              lhsId, rhsId);
+                                              lhsId, rhsId, tbaddr, fbaddr);
         this->ReceiveSendMsg("IdResult", std::to_string(ret));
+    } else if (funcName == "CreateFallthroughOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t address = atol(root["address"].asString().c_str());
+        uint64_t destaddr = atol(root["destaddr"].asString().c_str());
+        clientAPI.CreateFallthroughOp(address, destaddr);
+        NopJsonSerialize(result);
+        this->ReceiveSendMsg("VoidResult", result);
     } else if (funcName == "GetResultFromPhi") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();
