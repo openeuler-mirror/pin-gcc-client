@@ -73,7 +73,7 @@ public:
     bool AddPhiArg(uint64_t, uint64_t, uint64_t, uint64_t);
     uint64_t CreateGcallVec(uint64_t, uint64_t, vector<uint64_t> &);
     uint64_t CreateGassign(uint64_t, IExprCode, vector<uint64_t> &);
-    uint64_t CreateGcond(uint64_t, IComparisonCode, uint64_t, uint64_t);
+    CondOp BuildCondOp(uint64_t, uint64_t, Block*, Block*, uint64_t, uint64_t);
     uint64_t CreateGphiNode(uint64_t, uint64_t);
     FunctionOp BuildFunctionOp(uint64_t);
     Operation *BuildOperation(uint64_t);
@@ -87,7 +87,7 @@ public:
     bool UpdateSSA();
     vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t);
     bool IsDomInfoAvailable();
-
+    void RedirectFallthroughTarget(uint64_t, uint64_t);
 private:
     GimpleToPluginOps () = delete;
     mlir::OpBuilder builder;

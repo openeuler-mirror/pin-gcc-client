@@ -210,6 +210,8 @@ Json::Value PluginClient::OperationJsonSerialize(mlir::Operation *operation,
         root = CondOpJsonSerialize(op, bbId);
     } else if (PhiOp op = llvm::dyn_cast<PhiOp>(operation)) {
         root = PhiOpJsonSerialize(op);
+    } else if (SSAOp op = llvm::dyn_cast<SSAOp>(operation)) {
+        root = SSAOpJsonSerialize(op);
     } else if (FallThroughOp op = llvm::dyn_cast<FallThroughOp>(operation)) {
         root = FallThroughOpJsonSerialize(op, bbId);
     } else if (RetOp op = llvm::dyn_cast<RetOp>(operation)) {
@@ -400,6 +402,7 @@ Json::Value PluginClient::PhiOpJsonSerialize(PhiOp& data)
     item["id"] = std::to_string(data.idAttr().getInt());
     item["capacity"] = std::to_string(data.capacityAttr().getInt());
     item["nArgs"] = std::to_string(data.nArgsAttr().getInt());
+    item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
     size_t opIdx = 0;
     for (mlir::Value v : data.operands()) {
         PlaceholderOp phOp = v.getDefiningOp<PlaceholderOp>();
@@ -412,11 +415,26 @@ Json::Value PluginClient::PhiOpJsonSerialize(PhiOp& data)
     return item;
 }
 
+Json::Value PluginClient::SSAOpJsonSerialize(SSAOp& data)
+{
+    Json::Value item;
+    item["id"] = std::to_string(data.idAttr().getInt());
+    item["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    item["readOnly"] = std::to_string(data.readOnlyAttr().getInt());
+    item["ssaName"] = std::to_string(data.ssaNameAttr().getValue().str().c_str());
+    item["ssaParmDecl"] = std::to_string(data.ssaParmDeclAttr().getInt());
+    item["version"] = std::to_string(data.versionAttr().getInt());
+    item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
+    item["defOpId"] = std::to_string(data.defOpIdAttr().getInt());
+    return item;
+}
+
 Json::Value PluginClient::AssignOpJsonSerialize(AssignOp& data)
 {
     Json::Value item;
     item["id"] = std::to_string(data.idAttr().getInt());
     item["exprCode"] = std::to_string(data.exprCodeAttr().getInt());
+    item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
     size_t opIdx = 0;
     for (mlir::Value v : data.operands()) {
         PlaceholderOp phOp = v.getDefiningOp<PlaceholderOp>();
@@ -536,6 +554,22 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         LoopOp newLoop = clientAPI.GetLoopById(newLoopId);
         LoopOpJsonSerialize(newLoop, result);
         this->ReceiveSendMsg("LoopOpResult", result);
+    } else if (funcName == "RedirectFallthroughTarget") {
+        /// Json格式
+        /// {
+        ///     "src":"xxxx",
+        ///     "dest":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string srcKey = "src";
+        uint64_t src = atol(root[srcKey].asString().c_str());
+        std::string destKey = "dest";
+        uint64_t dest = atol(root[destKey].asString().c_str());
+        clientAPI.RedirectFallthroughTarget(src, dest);
+        NopJsonSerialize(result);
+        this->ReceiveSendMsg("VoidResult", result);
     } else if (funcName == "DeleteLoop") {
         /// Json格式
         /// {
