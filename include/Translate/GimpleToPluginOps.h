@@ -82,11 +82,18 @@ public:
     AssignOp BuildAssignOp(uint64_t);
     PhiOp BuildPhiOp(uint64_t);
     mlir::Value GetGphiResult(uint64_t);
+    mlir::Value BuildIntCst(mlir::Type, int64_t);
     mlir::Value TreeToValue(uint64_t);
 	mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t);
     bool UpdateSSA();
     vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t);
     bool IsDomInfoAvailable();
+    mlir::Value CreateNewDefFor(uint64_t, uint64_t, uint64_t);
+    bool SetCurrentDefFor(uint64_t, uint64_t);
+    mlir::Value GetCurrentDefFor(uint64_t);
+    mlir::Value CopySsaName(uint64_t);
+    mlir::Value MakeSsaName(mlir::Type);
+
     void RedirectFallthroughTarget(uint64_t, uint64_t);
 private:
     GimpleToPluginOps () = delete;

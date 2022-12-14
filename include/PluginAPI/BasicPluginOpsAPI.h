@@ -69,8 +69,13 @@ public:
     virtual uint64_t CreateCondOp(uint64_t, IComparisonCode, uint64_t, uint64_t, uint64_t, uint64_t) = 0;
     virtual void CreateFallthroughOp(uint64_t, uint64_t) = 0;
     virtual mlir::Value GetResultFromPhi(uint64_t) = 0;
+    virtual mlir::Value GetCurrentDefFromSSA(uint64_t) = 0;
+    virtual bool SetCurrentDefInSSA(uint64_t, uint64_t) = 0;
+    virtual mlir::Value CopySSAOp(uint64_t) = 0;
+    virtual mlir::Value CreateSSAOp(mlir::Type) = 0;
 
     virtual uint64_t CreateAssignOp(uint64_t, IExprCode, vector<uint64_t> &) = 0;
+    virtual mlir::Value CreateConstOp(mlir::Attribute, mlir::Type) = 0;
     virtual bool AddArgInPhiOp(uint64_t, uint64_t, uint64_t, uint64_t) = 0;
     virtual PhiOp CreatePhiOp(uint64_t, uint64_t) = 0;
     virtual bool UpdateSSA() = 0;

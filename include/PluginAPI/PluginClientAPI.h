@@ -67,11 +67,22 @@ public:
     /* Plugin API for PhiOp. */
     bool AddArgInPhiOp(uint64_t, uint64_t, uint64_t, uint64_t) override;
     PhiOp CreatePhiOp(uint64_t, uint64_t) override;
+    /* Plugin API for ConstOp. */
+    mlir::Value CreateConstOp(mlir::Attribute, mlir::Type) override;
     bool UpdateSSA() override;
     vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) override;
     bool IsDomInfoAvailable() override;
 	mlir::Value GetValue(uint64_t) override;
 	mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t) override;
+
+    mlir::Value GetCurrentDefFromSSA(uint64_t) override;
+    bool SetCurrentDefInSSA(uint64_t, uint64_t) override;
+    mlir::Value CopySSAOp(uint64_t) override;
+    mlir::Value CreateSSAOp(mlir::Type) override;
+    
+    /* Plugin API for Control Flow. */
+    mlir::Value CreateNewDef(uint64_t, uint64_t, uint64_t);
+
     void RedirectFallthroughTarget(uint64_t, uint64_t) override;
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;

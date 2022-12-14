@@ -157,7 +157,7 @@ class Pointer<string mnemonic> : Placeholder<mnemonic> {
 }
 
 class SSA<string mnemonic> : Placeholder<mnemonic> {
-  dag SSAArgs = (ins StrAttr:$SSAName,
+  dag SSAArgs = (ins UI64Attr:$SSAName,
                      UI64Attr:$ssaParmDecl,
                      UI64Attr:$version,
                      UI64Attr:$defStmtId,
@@ -172,7 +172,7 @@ class MemRef<string mnemonic> : Placeholder<mnemonic> {
 }
 
 class Constant<string mnemonic> : Placeholder<mnemonic> {
-    dag ConstArgs = (ins AnyType:$init);
+    dag ConstArgs = (ins AnyAttr:$init);
     let arguments = !con(commonArgs, ConstArgs);
 }
 
@@ -215,8 +215,8 @@ def SSAOp : SSA<"SSA"> {
   let description = [{TODO}];
   let builders = [
     OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,
-                      "StringRef":$SSAName, "uint64_t":$ssaParmDecl, "uint64_t":$version,
-                      "uint64_t":$defStmtId, "uint64_t":$defOpId)>
+                      "uint64_t":$SSAName, "uint64_t":$ssaParmDecl, "uint64_t":$version,
+                      "uint64_t":$defStmtId, "uint64_t":$defOpId, "Type":$retType)>
   ];
 }
 

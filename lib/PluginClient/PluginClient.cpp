@@ -61,6 +61,12 @@ std::shared_ptr<PluginClient> PluginClient::GetInstance(void)
     return g_plugin;
 }
 
+static uintptr_t GetID(Json::Value node)
+{
+    string id = node.asString();
+    return atol(id.c_str());
+}
+
 int PluginClient::GetEvent(InjectPoint inject, plugin_event *event)
 {
     auto it = g_injectPoint.find(inject);
@@ -69,12 +75,6 @@ int PluginClient::GetEvent(InjectPoint inject, plugin_event *event)
         return 0;
     }
     return -1;
-}
-
-static uintptr_t GetID(Json::Value node)
-{
-    string id = node.asString();
-    return atol(id.c_str());
 }
 
 Json::Value PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type)
@@ -146,7 +146,6 @@ PluginIR::PluginTypeBase PluginClient::TypeJsonDeSerialize(const string& data, m
         baseType = PluginIR::PluginFloatType::get(&context, width);
     }else if (id == static_cast<uint64_t>(PluginIR::PointerTyID)) {
         mlir::Type elemTy = TypeJsonDeSerialize(type["elementType"].toStyledString(), context);
-        auto ty = elemTy.dyn_cast<PluginIR::PluginTypeBase>();
         baseType = PluginIR::PluginPointerType::get(&context, elemTy, type["elemConst"].asString() == "1" ? 1 : 0);
     }else {
         if (PluginTypeId == PluginIR::VoidTyID)
@@ -210,8 +209,6 @@ Json::Value PluginClient::OperationJsonSerialize(mlir::Operation *operation,
         root = CondOpJsonSerialize(op, bbId);
     } else if (PhiOp op = llvm::dyn_cast<PhiOp>(operation)) {
         root = PhiOpJsonSerialize(op);
-    } else if (SSAOp op = llvm::dyn_cast<SSAOp>(operation)) {
-        root = SSAOpJsonSerialize(op);
     } else if (FallThroughOp op = llvm::dyn_cast<FallThroughOp>(operation)) {
         root = FallThroughOpJsonSerialize(op, bbId);
     } else if (RetOp op = llvm::dyn_cast<RetOp>(operation)) {
@@ -372,10 +369,8 @@ Json::Value PluginClient::CallOpJsonSerialize(CallOp& data)
     item["callee"] = data.callee().str();
     size_t opIdx = 0;
     for (mlir::Value v : data.getArgOperands()) {
-        PlaceholderOp phOp = v.getDefiningOp<PlaceholderOp>();
         string input = "input" + std::to_string(opIdx++);
-        item["operands"][input]["id"] = std::to_string(phOp.idAttr().getInt());
-        item["operands"][input]["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
+        item["operands"][input] = ValueJsonSerialize(v);
     }
     auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
     item["retType"] = TypeJsonSerialize(retTy);
@@ -405,10 +400,8 @@ Json::Value PluginClient::PhiOpJsonSerialize(PhiOp& data)
     item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
     size_t opIdx = 0;
     for (mlir::Value v : data.operands()) {
-        PlaceholderOp phOp = v.getDefiningOp<PlaceholderOp>();
         string input = "input" + std::to_string(opIdx++);
-        item["operands"][input]["id"] = std::to_string(phOp.idAttr().getInt());
-        item["operands"][input]["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
+        item["operands"][input] = ValueJsonSerialize(v);
     }
     auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
     item["retType"] = TypeJsonSerialize(retTy);
@@ -421,11 +414,13 @@ Json::Value PluginClient::SSAOpJsonSerialize(SSAOp& data)
     item["id"] = std::to_string(data.idAttr().getInt());
     item["defCode"] = std::to_string(data.defCodeAttr().getInt());
     item["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
-    item["ssaName"] = data.SSANameAttr().getValue().str().c_str();
+    item["ssaName"] = std::to_string(data.SSANameAttr().getInt());
     item["ssaParmDecl"] = std::to_string(data.ssaParmDeclAttr().getInt());
     item["version"] = std::to_string(data.versionAttr().getInt());
     item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
     item["definingId"] = std::to_string(data.definingIdAttr().getInt());
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    item["retType"] = TypeJsonSerialize(retTy);
     return item;
 }
 
@@ -437,10 +432,8 @@ Json::Value PluginClient::AssignOpJsonSerialize(AssignOp& data)
     item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
     size_t opIdx = 0;
     for (mlir::Value v : data.operands()) {
-        PlaceholderOp phOp = v.getDefiningOp<PlaceholderOp>();
         string input = "input" + std::to_string(opIdx++);
-        item["operands"][input]["id"] = std::to_string(phOp.idAttr().getInt());
-        item["operands"][input]["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
+        item["operands"][input] = ValueJsonSerialize(v);
     }
     auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
     item["retType"] = TypeJsonSerialize(retTy);
@@ -450,7 +443,19 @@ Json::Value PluginClient::AssignOpJsonSerialize(AssignOp& data)
 Json::Value PluginClient::ValueJsonSerialize(mlir::Value data)
 {
     Json::Value root;
-    if (PlaceholderOp phOp = data.getDefiningOp<PlaceholderOp>()) {
+    if (ConstOp cOp = data.getDefiningOp<ConstOp>()) {
+        auto retTy = data.getType().dyn_cast<PluginIR::PluginTypeBase>();
+        root["retType"] = TypeJsonSerialize(retTy);
+        root["id"] = std::to_string(cOp.idAttr().getInt());
+        root["defCode"] = std::to_string(
+                static_cast<int32_t>(IDefineCode::IntCST));
+        root["value"] = std::to_string(
+                cOp.initAttr().cast<mlir::IntegerAttr>().getInt());
+    } else if (MemOp mOp = data.getDefiningOp<MemOp>()) {
+        root = MemOpJsonSerialize(mOp);
+    } else if (SSAOp sOp = data.getDefiningOp<SSAOp>()) {
+        root = SSAOpJsonSerialize(sOp);
+    }  else if (PlaceholderOp phOp = data.getDefiningOp<PlaceholderOp>()) {
         root["id"] = std::to_string(phOp.idAttr().getInt());
         root["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
         auto retTy = phOp.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
@@ -863,6 +868,17 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         PhiOp op = clientAPI.CreatePhiOp(argId, blockId);
         Json::Value result = PhiOpJsonSerialize(op);
         this->ReceiveSendMsg("OpsResult", result.toStyledString());
+    } else if (funcName == "CreateConstOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        PluginIR::PluginTypeBase type = TypeJsonDeSerialize(root.toStyledString(), context);
+        uint64_t value = atol(root["value"].asString().c_str());
+        mlir::OpBuilder opBuilder = mlir::OpBuilder(&context);
+        mlir::Attribute attr = opBuilder.getI64IntegerAttr(value);
+        mlir::Value ret = clientAPI.CreateConstOp(attr, type);
+        this->ReceiveSendMsg("ValueResult",
+                             ValueJsonSerialize(ret).toStyledString());
     } else if (funcName == "UpdateSSA") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();
@@ -883,6 +899,48 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         PluginAPI::PluginClientAPI clientAPI(context);
         bool ret = clientAPI.IsDomInfoAvailable();
         this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
+    } else if (funcName == "GetCurrentDefFromSSA") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        uint64_t varId = atol(root["varId"].asString().c_str());
+        PluginAPI::PluginClientAPI clientAPI(context);
+        mlir::Value ret = clientAPI.GetCurrentDefFromSSA(varId);
+        this->ReceiveSendMsg("ValueResult",
+                             ValueJsonSerialize(ret).toStyledString());
+    } else if (funcName == "SetCurrentDefInSSA") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        uint64_t varId = atol(root["varId"].asString().c_str());
+        uint64_t defId = atol(root["defId"].asString().c_str());
+        PluginAPI::PluginClientAPI clientAPI(context);
+        bool ret = clientAPI.SetCurrentDefInSSA(varId, defId);
+        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
+    } else if (funcName == "CopySSAOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t id = atol(root["id"].asString().c_str());
+        mlir::Value ret = clientAPI.CopySSAOp(id);
+        this->ReceiveSendMsg("ValueResult",
+                             ValueJsonSerialize(ret).toStyledString());
+    } else if (funcName == "CreateSSAOp") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        PluginIR::PluginTypeBase type = TypeJsonDeSerialize(root.toStyledString(), context);
+        mlir::Value ret = clientAPI.CreateSSAOp(type);
+        this->ReceiveSendMsg("ValueResult",
+                             ValueJsonSerialize(ret).toStyledString());
+    } else if (funcName == "CreateNewDef") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t opId = atol(root["opId"].asString().c_str());
+        uint64_t valueId = atol(root["valueId"].asString().c_str());
+        uint64_t defId = atol(root["defId"].asString().c_str());
+        mlir::Value ret = clientAPI.CreateNewDef(valueId, opId, defId);
+        this->ReceiveSendMsg("ValueResult",
+                             ValueJsonSerialize(ret).toStyledString());
 	} else if (funcName == "ConfirmValue") {
         /// Json格式
         /// {
