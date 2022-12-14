@@ -73,7 +73,7 @@ def IDefineCodeSSA       : I32EnumAttrCase<"SSA", 2>;
 def IDefineCodeUNDEF     : I32EnumAttrCase<"UNDEF", 3>;
 def IDefineCodeAttr  : I32EnumAttr<
    "IDefineCode", "plugin define code",
-   [IDefineCodeMemRef, IDefineCodeIntCST, IDefineCodeUNDEF]>{
+   [IDefineCodeMemRef, IDefineCodeIntCST, IDefineCodeSSA, IDefineCodeUNDEF]>{
   let cppNamespace = "::mlir::Plugin";
 }
 

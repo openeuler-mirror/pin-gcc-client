@@ -128,6 +128,7 @@ public:
     Json::Value RetOpJsonSerialize(mlir::Plugin::RetOp data, uint64_t&);
     Json::Value ValueJsonSerialize(mlir::Value value);
     Json::Value MemOpJsonSerialize(mlir::Plugin::MemOp& data);
+    Json::Value SSAOpJsonSerialize(mlir::Plugin::SSAOp& data);
     /* 将Type类型数据序列化 */
     Json::Value TypeJsonSerialize(PluginIR::PluginTypeBase& type);
     PluginIR::PluginTypeBase TypeJsonDeSerialize(const string& data, mlir::MLIRContext &context);

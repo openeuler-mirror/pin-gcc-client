@@ -795,7 +795,7 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             uint64_t defStmtId = reinterpret_cast<uint64_t>(SSA_NAME_DEF_STMT(*t));
             uint64_t defOpId = reinterpret_cast<uint64_t>(SSA_NAME_VAR(*t));
             return builder.create<SSAOp>(builder.getUnknownLoc(), treeId,
-                                         IDefineCode::SSA, TYPE_READONLY(*t),
+                                         IDefineCode::SSA, (uint64_t)TYPE_READONLY(*t),
                                          ssaname, ssaParmDecl, version,
                                          defStmtId, defOpId);
             break;

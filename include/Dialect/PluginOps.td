@@ -215,7 +215,7 @@ def SSAOp : SSA<"SSA"> {
   let description = [{TODO}];
   let builders = [
     OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,
-                      "StringRef":$SSAName, "uint64_t":ssaParmDecl, "uint64_t":$version,
+                      "StringRef":$SSAName, "uint64_t":$ssaParmDecl, "uint64_t":$version,
                       "uint64_t":$defStmtId, "uint64_t":$defOpId)>
   ];
 }
