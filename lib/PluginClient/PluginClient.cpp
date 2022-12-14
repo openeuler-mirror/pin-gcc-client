@@ -420,12 +420,12 @@ Json::Value PluginClient::SSAOpJsonSerialize(SSAOp& data)
     Json::Value item;
     item["id"] = std::to_string(data.idAttr().getInt());
     item["defCode"] = std::to_string(data.defCodeAttr().getInt());
-    item["readOnly"] = std::to_string(data.readOnlyAttr().getInt());
-    item["ssaName"] = std::to_string(data.ssaNameAttr().getValue().str().c_str());
+    item["readOnly"] = std::to_string(data.readOnlyAttr().getBoolAttr());
+    item["ssaName"] = std::to_string(data.SSANameAttr().getValue().str().c_str());
     item["ssaParmDecl"] = std::to_string(data.ssaParmDeclAttr().getInt());
     item["version"] = std::to_string(data.versionAttr().getInt());
     item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
-    item["defOpId"] = std::to_string(data.defOpIdAttr().getInt());
+    item["definingId"] = std::to_string(data.definingIdAttr().getInt());
     return item;
 }
 
