@@ -458,6 +458,14 @@ LoopOp GimpleToPluginOps::GetBlockLoopFather(uint64_t blockID)
     return pluginLoop;
 }
 
+void GimpleToPluginOps::RedirectFallthroughTarget(uint64_t src, uint64_t dest)
+{
+    basic_block srcbb = reinterpret_cast<basic_block>(reinterpret_cast<void*>(src));
+    basic_block destbb = reinterpret_cast<basic_block>(reinterpret_cast<void*>(dest));
+    assert(single_succ_p (srcbb));
+    redirect_edge_and_branch (single_succ_edge(srcbb), destbb);
+}
+
 FunctionOp GimpleToPluginOps::BuildFunctionOp(uint64_t functionId)
 {
     function *fn = reinterpret_cast<function*>(functionId);
@@ -533,8 +541,9 @@ PhiOp GimpleToPluginOps::BuildPhiOp(uint64_t gphiId)
     PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
     uint32_t capacity = gimple_phi_capacity(stmt);
     uint32_t nArgs = gimple_phi_num_args(stmt);
+    uint64_t defStmtId = reinterpret_cast<uint64_t>(stmt);
     PhiOp ret = builder.create<PhiOp>(builder.getUnknownLoc(),
-                                      gphiId, capacity, nArgs, ops, rPluginType);
+                                      gphiId, capacity, nArgs, defStmtId, ops, rPluginType);
     return ret;
 }
 
@@ -726,10 +735,11 @@ AssignOp GimpleToPluginOps::BuildAssignOp(uint64_t gassignId)
         ops.push_back(TreeToValue(rhs3Id));
     }
     IExprCode iCode = TranslateExprCode(gimple_assign_rhs_code(stmt));
+    uint64_t defStmtId = reinterpret_cast<uint64_t>(stmt);
     tree returnType = TREE_TYPE(gimple_assign_lhs(stmt));
     PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
     AssignOp ret = builder.create<AssignOp>(
-            builder.getUnknownLoc(), gassignId, iCode, ops, rPluginType);
+            builder.getUnknownLoc(), gassignId, iCode, defStmtId, ops, rPluginType);
     return ret;
 }
 
@@ -776,6 +786,18 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             break;
         }
         case SSA_NAME : {
+            const char *ssaname = "";
+            if (DECL_NAME (*t)) {
+                ssaname = IDENTIFIER_POINTER (DECL_NAME (*t));
+            }
+            uint64_t ssaParmDecl = (TREE_CODE (SSA_NAME_VAR (*t)) == PARM_DECL) ? 1 : 0;
+            uint64_t version = SSA_NAME_VERSION(*t);
+            uint64_t defStmtId = reinterpret_cast<uint64_t>(SSA_NAME_DEF_STMT(*t));
+            uint64_t defOpId = reinterpret_cast<uint64_t>(SSA_NAME_VAR(*t));
+            return builder.create<SSAOp>(builder.getUnknownLoc(), treeId,
+                                         IDefineCode::SSA, TYPE_READONLY(*t),
+                                         ssaname, ssaParmDecl, version,
+                                         defStmtId, defOpId);
             break;
         }
         default:

@@ -106,12 +106,13 @@ def PhiOp : Plugin_Op<"phi", [NoSideEffect]> {
   let arguments = (ins UI64Attr:$id,
                        UI32Attr:$capacity,
                        UI32Attr:$nArgs,
+                       UI64Attr:$defStmtId,
                        Variadic<AnyType>:$operands);
   let results = (outs AnyType:$result);
   let builders = [
     OpBuilderDAG<(ins "uint64_t":$id, "uint32_t":$capacity,
-                  "uint32_t":$nArgs, "ArrayRef<Value>":$operands,
-                  "Type":$resultType)>
+                  "uint32_t":$nArgs, "uint64_t":$defStmtId,
+                  "ArrayRef<Value>":$operands, "Type":$resultType)>
   ];
   let extraClassDeclaration = [{
     Type getResultType() { return this->getOperation()->getResult(0).getType(); }
@@ -124,10 +125,11 @@ def AssignOp : Plugin_Op<"assign", [NoSideEffect]> {
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id,
                        IExprCodeAttr:$exprCode,
+                       UI64Attr:$defStmtId,
                        Variadic<AnyType>:$operands);
   let results = (outs AnyType:$result);
   let builders = [
-    OpBuilderDAG<(ins "uint64_t":$id, "IExprCode":$exprCode,
+    OpBuilderDAG<(ins "uint64_t":$id, "IExprCode":$exprCode, "uint64_t":$defStmtId,
                   "ArrayRef<Value>":$operands, "Type":$resultType)>
   ];
   let extraClassDeclaration = [{
@@ -156,7 +158,9 @@ class Pointer<string mnemonic> : Placeholder<mnemonic> {
 
 class SSA<string mnemonic> : Placeholder<mnemonic> {
   dag SSAArgs = (ins StrAttr:$SSAName,
+                     UI64Attr:$ssaParmDecl,
                      UI64Attr:$version,
+                     UI64Attr:$defStmtId,
                      UI64Attr:$definingId);
   let arguments = !con(commonArgs, SSAArgs);
 }
@@ -211,8 +215,8 @@ def SSAOp : SSA<"SSA"> {
   let description = [{TODO}];
   let builders = [
     OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,
-                      "StringRef":$SSAName, "uint64_t":$version,
-                      "uint64_t":$defOpId)>
+                      "StringRef":$SSAName, "uint64_t":ssaParmDecl, "uint64_t":$version,
+                      "uint64_t":$defStmtId, "uint64_t":$defOpId)>
   ];
 }
 

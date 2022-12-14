@@ -194,4 +194,9 @@ mlir::Value PluginClientAPI::BuildMemRef(PluginIR::PluginTypeBase type,
     return gimpleConversion.BuildMemRef(type, baseId, offsetId);
 }
 
+void PluginClientAPI::RedirectFallthroughTarget(uint64_t src, uint64_t dest)
+{
+    return gimpleConversion.RedirectFallthroughTarget(src, dest);
+}
+
 } // namespace PluginAPI

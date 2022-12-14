@@ -72,7 +72,7 @@ public:
     bool IsDomInfoAvailable() override;
 	mlir::Value GetValue(uint64_t) override;
 	mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t) override;
-
+    void RedirectFallthroughTarget(uint64_t, uint64_t) override;
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;
 }; // class PluginClientAPI

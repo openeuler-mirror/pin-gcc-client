@@ -102,7 +102,9 @@ void SSAOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
                        builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
     state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
     state.addAttribute("ssaName", builder.getStringAttr(ssaName));
+    state.addAttribute("ssaParmDecl", builder.getI64IntegerAttr(ssaParmDecl));
     state.addAttribute("version", builder.getI64IntegerAttr(version));
+    state.addAttribute("$defStmtId", builder.getI64IntegerAttr($defStmtId));
     state.addAttribute("defOpId", builder.getI64IntegerAttr(defOpId));
 }
 
