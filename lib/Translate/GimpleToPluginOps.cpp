@@ -655,19 +655,31 @@ uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
 }
 
 uint64_t GimpleToPluginOps::CreateGcond(uint64_t blockId, IComparisonCode iCode,
-                                        uint64_t lhsId, uint64_t rhsId)
+                                        uint64_t lhsId, uint64_t rhsId,
+                                        uint64_t tbaddr, uint64_t fbaddr)
 {
-    tree *lhs = reinterpret_cast<tree*>(lhsId);
-    tree *rhs = reinterpret_cast<tree*>(rhsId);
+    tree lhs = reinterpret_cast<tree>(lhsId);
+    tree rhs = reinterpret_cast<tree>(rhsId);
     gcond *ret = gimple_build_cond (TranslateCmpCodeToTreeCode(iCode),
-                                    *lhs, *rhs, NULL_TREE, NULL_TREE);
-    basic_block *bb = reinterpret_cast<basic_block*>(blockId);
+                                    lhs, rhs, NULL_TREE, NULL_TREE);
+    basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
         gimple_stmt_iterator si;
-        si = gsi_last_bb (*bb);
+        si = gsi_last_bb (bb);
         gsi_insert_after (&si, ret, GSI_NEW_STMT);
     }
+    basic_block tb = reinterpret_cast<basic_block>(tbaddr);
+    basic_block fb = reinterpret_cast<basic_block>(fbaddr);
+    assert(make_edge (bb, tb, EDGE_TRUE_VALUE));
+    assert(make_edge (bb, fb, EDGE_FALSE_VALUE));
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
+}
+
+void GimpleToPluginOps::CreateFallthroughOp(uint64_t addr, uint64_t destaddr)
+{
+    basic_block src = reinterpret_cast<basic_block>(addr);
+    basic_block dest = reinterpret_cast<basic_block>(destaddr);
+    assert(make_single_succ_edge (src, dest, EDGE_FALLTHRU));
 }
 
 CondOp GimpleToPluginOps::BuildCondOp(uint64_t gcondId, uint64_t address,

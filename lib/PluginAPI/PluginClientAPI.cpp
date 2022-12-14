@@ -146,9 +146,15 @@ uint64_t PluginClientAPI::CreateAssignOp(uint64_t blockId, IExprCode iCode,
 }
 
 uint64_t PluginClientAPI::CreateCondOp(uint64_t blockId, IComparisonCode iCode,
-                                       uint64_t LHS, uint64_t RHS)
+                                       uint64_t LHS, uint64_t RHS,
+                                       uint64_t tbaddr, uint64_t fbaddr)
 {
-    return gimpleConversion.CreateGcond(blockId, iCode, LHS, RHS);
+    return gimpleConversion.CreateGcond(blockId, iCode, LHS, RHS, tbaddr, fbaddr);
+}
+
+void PluginClientAPI::CreateFallthroughOp(uint64_t address, uint64_t destaddr)
+{
+    gimpleConversion.CreateFallthroughOp(address, destaddr);
 }
 
 mlir::Value PluginClientAPI::GetResultFromPhi(uint64_t id)

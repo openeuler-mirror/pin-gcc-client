@@ -59,7 +59,8 @@ public:
     bool SetLhsInCallOp(uint64_t, uint64_t) override;
     uint64_t CreateCallOp(uint64_t, uint64_t, vector<uint64_t> &) override;
     /* Plugin API for CondOp. */
-    uint64_t CreateCondOp(uint64_t, IComparisonCode, uint64_t, uint64_t) override;
+    uint64_t CreateCondOp(uint64_t, IComparisonCode, uint64_t, uint64_t, uint64_t, uint64_t) override;
+    void CreateFallthroughOp(uint64_t, uint64_t) override;
     mlir::Value GetResultFromPhi(uint64_t) override;
     /* Plugin API for AssignOp. */
     uint64_t CreateAssignOp(uint64_t, IExprCode, vector<uint64_t> &) override;
