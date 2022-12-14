@@ -298,6 +298,22 @@ void PluginClient::NopJsonSerialize(string& out)
     out = root.toStyledString();
 }
 
+void PluginClient::GetPhiOpsJsonSerialize(vector<PhiOp> phiOps, string & out)
+{
+    Json::Value root;
+    Json::Value item;
+    int i = 0;
+    string operation;
+    uint64_t placeholder = 0;
+    for (auto phi : phiOps) {
+        item = OperationJsonSerialize(phi.getOperation(), placeholder);
+        operation = "operation" + std::to_string(i++);
+        root[operation] = item;
+        item.clear();
+    }
+    out = root.toStyledString();
+}
+
 Json::Value PluginClient::CallOpJsonSerialize(CallOp& data)
 {
     Json::Value item;
@@ -579,6 +595,68 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         uint64_t funcAddr = atol(root["funcaddr"].asString().c_str());
         uint64_t newBBAddr = clientAPI.CreateBlock(funcAddr, blockAddr);
         this->ReceiveSendMsg("IdResult", std::to_string(newBBAddr));
+    } else if (funcName == "DeleteBlock") {
+        /// Json格式
+        /// {
+        ///     "bbaddr":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string BlockIdKey = "bbaddr";
+        uint64_t addr = atol(root[BlockIdKey].asString().c_str());
+        clientAPI.DeleteLoop(addr);
+        NopJsonSerialize(result);
+        this->ReceiveSendMsg("VoidResult", result);
+    } else if (funcName == "SetImmediateDominator") {
+        /// Json格式
+        /// {
+        ///     "dir":"xxxx",
+        ///     "bbaddr":"xxxx",
+        ///     "domiaddr":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string dirIdKey = "dir";
+        uint64_t dir = atol(root[dirIdKey].asString().c_str());
+        std::string BlockIdKey = "bbaddr";
+        uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
+        std::string domiIdKey = "domiaddr";
+        uint64_t domiaddr = atol(root[domiIdKey].asString().c_str());
+        clientAPI.SetImmediateDominator(dir, bbaddr, domiaddr);
+        NopJsonSerialize(result);
+        this->ReceiveSendMsg("VoidResult", result);
+    } else if (funcName == "GetImmediateDominator") {
+        /// Json格式
+        /// {
+        ///     "dir":"xxxx",
+        ///     "bbaddr":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string dirIdKey = "dir";
+        uint64_t dir = atol(root[dirIdKey].asString().c_str());
+        std::string BlockIdKey = "bbaddr";
+        uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
+        uint64_t ret = clientAPI.GetImmediateDominator(dir, bbaddr);
+        this->ReceiveSendMsg("IdResult", std::to_string(ret));
+    } else if (funcName == "RecomputeDominator") {
+        /// Json格式
+        /// {
+        ///     "dir":"xxxx",
+        ///     "bbaddr":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string dirIdKey = "dir";
+        uint64_t dir = atol(root[dirIdKey].asString().c_str());
+        std::string BlockIdKey = "bbaddr";
+        uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
+        uint64_t ret = clientAPI.RecomputeDominator(dir, bbaddr);
+        this->ReceiveSendMsg("IdResult", std::to_string(ret));
     } else if (funcName == "GetPhiOp") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();
@@ -676,6 +754,26 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         PhiOp op = clientAPI.CreatePhiOp(argId, blockId);
         Json::Value result = PhiOpJsonSerialize(op);
         this->ReceiveSendMsg("OpsResult", result.toStyledString());
+    } else if (funcName == "UpdateSSA") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        bool ret = clientAPI.UpdateSSA();
+        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
+    } else if (funcName == "GetAllPhiOpInsideBlock") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        uint64_t bb = atol(root["bbAddr"].asString().c_str());
+        vector<PhiOp> phiOps = clientAPI.GetPhiOpsInsideBlock(bb);
+        GetPhiOpsJsonSerialize(phiOps, result);
+        this->ReceiveSendMsg("GetPhiOps", result);
+    } else if (funcName == "IsDomInfoAvailable") {
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        bool ret = clientAPI.IsDomInfoAvailable();
+        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
     } else {
         LOGW("function: %s not found!\n", funcName.c_str());
     }
@@ -1059,6 +1157,7 @@ int ServerStart(int timeout, const string& serverPath, pid_t& pid, string& port,
     }
     int delay = 500000; // 500ms
     usleep(delay); // wait server start
+
     return ret;
 }
 
@@ -1070,6 +1169,7 @@ int ClientStart(int timeout, const string& arg, const string& pluginName, const 
     g_plugin->SetInjectFlag(false);
     g_plugin->SetTimeout(timeout);
     g_plugin->SetUserFuncState(STATE_WAIT_BEGIN);
+
     if (!g_plugin->TimerInit()) {
         return 0;
     }

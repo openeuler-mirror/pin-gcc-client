@@ -45,6 +45,8 @@
 #include "langhooks.h"
 #include "cfgloop.h"
 #include "tree-cfg.h"
+#include "tree-into-ssa.h"
+#include "dominance.h"
 
 namespace PluginIR {
 using namespace mlir::Plugin;
@@ -225,6 +227,57 @@ uint64_t GimpleToPluginOps::CreateBlock(uint64_t funcAddr, uint64_t bbAddr)
     uint64_t ret = reinterpret_cast<uint64_t>(create_empty_bb(address));
     pop_cfun();
     return ret;
+}
+
+void GimpleToPluginOps::DeleteBlock(uint64_t funcAddr, uint64_t bbAddr)
+{
+    basic_block address = reinterpret_cast<basic_block>(bbAddr);
+    function *fn = reinterpret_cast<function *>(funcAddr);
+    push_cfun(fn);
+    delete_basic_block(address);
+    pop_cfun();
+}
+
+void GimpleToPluginOps::SetImmediateDominator(uint64_t dir, uint64_t bbAddr,
+                                              uint64_t domiAddr)
+{
+    basic_block bb = reinterpret_cast<basic_block>(bbAddr);
+    basic_block dominated = reinterpret_cast<basic_block>(domiAddr);
+    if (dir == 1) {
+        set_immediate_dominator(CDI_DOMINATORS, bb, dominated);
+    } else if (dir == 2) {
+        set_immediate_dominator(CDI_POST_DOMINATORS, bb, dominated);
+    } else {
+        abort();
+    }
+}
+
+uint64_t GimpleToPluginOps::GetImmediateDominator(uint64_t dir, uint64_t bbAddr)
+{
+    basic_block bb = reinterpret_cast<basic_block>(bbAddr);
+    if (dir == 1) {
+        basic_block res = get_immediate_dominator(CDI_DOMINATORS, bb);
+        return reinterpret_cast<uint64_t>(res);
+    } else if (dir == 2) {
+        basic_block res = get_immediate_dominator(CDI_POST_DOMINATORS, bb);
+        return reinterpret_cast<uint64_t>(res);
+    }
+
+    abort();
+}
+
+uint64_t GimpleToPluginOps::RecomputeDominator(uint64_t dir, uint64_t bbAddr)
+{
+    basic_block bb = reinterpret_cast<basic_block>(bbAddr);
+    if (dir == 1) {
+        basic_block res = recompute_dominator(CDI_DOMINATORS, bb);
+        return reinterpret_cast<uint64_t>(res);
+    } else if (dir == 2) {
+        basic_block res = recompute_dominator(CDI_POST_DOMINATORS, bb);
+        return reinterpret_cast<uint64_t>(res);
+    }
+
+    abort();
 }
 
 vector<FunctionOp> GimpleToPluginOps::GetAllFunction()
@@ -770,6 +823,33 @@ bool GimpleToPluginOps::ProcessBasicBlock(intptr_t bbPtr, Region& rg)
     // block->dump();
     // fprintf(stderr, "[bb%d] succ: %d\n", bb->index,block->getNumSuccessors());
     return true;
+}
+
+bool GimpleToPluginOps::UpdateSSA()
+{
+    update_ssa(TODO_update_ssa);
+    return true;
+}
+
+vector<PhiOp> GimpleToPluginOps::GetPhiOpsInsideBlock(uint64_t bb)
+{
+    basic_block header = reinterpret_cast<basic_block>(bb);
+    vector<PhiOp> phiOps;
+
+    gphi_iterator gsi;
+    for (gsi = gsi_start_phis(header); !gsi_end_p(gsi); gsi_next(&gsi)) {
+        gphi *phi = gsi.phi();
+        PhiOp phiOp;
+        uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(phi));
+        phiOp = BuildPhiOp(id);
+        phiOps.push_back(phiOp);
+    }
+    return phiOps;
+}
+
+bool GimpleToPluginOps::IsDomInfoAvailable()
+{
+    return dom_info_available_p (CDI_DOMINATORS);
 }
 
 } // namespace PluginIR

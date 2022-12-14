@@ -34,6 +34,10 @@ public:
     ~PluginClientAPI () = default;
 
     uint64_t CreateBlock(uint64_t, uint64_t) override;
+    void DeleteBlock(uint64_t, uint64_t) override;
+    void SetImmediateDominator(uint64_t, uint64_t, uint64_t) override;
+    uint64_t GetImmediateDominator(uint64_t, uint64_t) override;
+    uint64_t RecomputeDominator(uint64_t, uint64_t) override;
 
     vector<FunctionOp> GetAllFunc() override;
     vector<LocalDeclOp> GetDecls(uint64_t funcID) override;
@@ -62,6 +66,9 @@ public:
     /* Plugin API for PhiOp. */
     bool AddArgInPhiOp(uint64_t, uint64_t, uint64_t, uint64_t) override;
     PhiOp CreatePhiOp(uint64_t, uint64_t) override;
+    bool UpdateSSA() override;
+    vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) override;
+    bool IsDomInfoAvailable() override;
 
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;
