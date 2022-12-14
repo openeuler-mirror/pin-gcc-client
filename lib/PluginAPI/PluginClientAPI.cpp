@@ -145,6 +145,15 @@ uint64_t PluginClientAPI::CreateAssignOp(uint64_t blockId, IExprCode iCode,
     return gimpleConversion.CreateGassign(blockId, iCode, argIds);
 }
 
+mlir::Value PluginClientAPI::CreateConstOp(mlir::Attribute attr, mlir::Type type)
+{
+    if (mlir::IntegerAttr iAttr = attr.dyn_cast<mlir::IntegerAttr>()) {
+        int64_t init = iAttr.getInt();
+        return gimpleConversion.BuildIntCst(type, init);
+    }
+    return nullptr;
+}
+
 uint64_t PluginClientAPI::CreateCondOp(uint64_t blockId, IComparisonCode iCode,
                                        uint64_t LHS, uint64_t RHS,
                                        uint64_t tbaddr, uint64_t fbaddr)
@@ -181,6 +190,31 @@ vector<mlir::Plugin::PhiOp> PluginClientAPI::GetPhiOpsInsideBlock(uint64_t bb)
 bool PluginClientAPI::IsDomInfoAvailable()
 {
     return gimpleConversion.IsDomInfoAvailable();
+}
+
+mlir::Value PluginClientAPI::GetCurrentDefFromSSA(uint64_t varId)
+{
+    return gimpleConversion.GetCurrentDefFor(varId);
+}
+
+bool PluginClientAPI::SetCurrentDefInSSA(uint64_t varId, uint64_t defId)
+{
+    return gimpleConversion.SetCurrentDefFor(varId, defId);
+}
+
+mlir::Value PluginClientAPI::CopySSAOp(uint64_t id)
+{
+    return gimpleConversion.CopySsaName(id);
+}
+
+mlir::Value PluginClientAPI::CreateSSAOp(mlir::Type type)
+{
+    return gimpleConversion.MakeSsaName(type);
+}
+
+mlir::Value PluginClientAPI::CreateNewDef(uint64_t oldId, uint64_t opId, uint64_t defId)
+{
+    return gimpleConversion.CreateNewDefFor(oldId, opId, defId);
 }
 
 mlir::Value PluginClientAPI::GetValue(uint64_t valId)

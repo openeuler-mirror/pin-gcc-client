@@ -47,6 +47,7 @@
 #include "tree-cfg.h"
 #include "tree-into-ssa.h"
 #include "dominance.h"
+#include "print-tree.h"
 
 namespace PluginIR {
 using namespace mlir::Plugin;
@@ -531,7 +532,7 @@ PhiOp GimpleToPluginOps::BuildPhiOp(uint64_t gphiId)
     llvm::SmallVector<Value, 4> ops;
     ops.reserve(gimple_phi_num_args(stmt));
     for (unsigned i = 0; i < gimple_phi_num_args(stmt); i++) {
-        tree *argTree = gimple_phi_arg_def_ptr(stmt, i);
+        tree argTree = gimple_phi_arg_def(stmt, i);
         uint64_t argId = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(argTree));
         Value arg = TreeToValue(argId);
@@ -551,11 +552,10 @@ uint64_t GimpleToPluginOps::CreateGphiNode(uint64_t argId, uint64_t blockId)
 {
     tree arg = NULL_TREE;
     if (argId != 0) {
-        tree *argPtr = reinterpret_cast<tree*>(argId);
-        arg = *argPtr;
+        arg = reinterpret_cast<tree>(argId);
     }
-    basic_block *bb = reinterpret_cast<basic_block*>(blockId);
-    gphi *ret = create_phi_node(arg, *bb);
+    basic_block bb = reinterpret_cast<basic_block>(blockId);
+    gphi *ret = create_phi_node(arg, bb);
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
 }
 
@@ -569,7 +569,7 @@ CallOp GimpleToPluginOps::BuildCallOp(uint64_t gcallId)
     llvm::SmallVector<Value, 4> ops;
     ops.reserve(gimple_call_num_args(stmt));
     for (unsigned i = 0; i < gimple_call_num_args(stmt); i++) {
-        tree *callArg = gimple_call_arg_ptr(stmt, i);
+        tree callArg = gimple_call_arg(stmt, i);
         uint64_t argId = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(callArg));
         Value arg = TreeToValue(argId);
@@ -586,25 +586,31 @@ CallOp GimpleToPluginOps::BuildCallOp(uint64_t gcallId)
 bool GimpleToPluginOps::SetGimpleCallLHS(uint64_t callId, uint64_t lhsId)
 {
     gcall *stmt = reinterpret_cast<gcall*>(callId);
-    tree *lhs = reinterpret_cast<tree*>(callId);
-    gimple_call_set_lhs (stmt, *lhs);
+    tree lhs = reinterpret_cast<tree>(callId);
+    gimple_call_set_lhs (stmt, lhs);
     return true;
 }
 
 uint64_t GimpleToPluginOps::CreateGcallVec(uint64_t blockId, uint64_t funcId,
                                            vector<uint64_t> &argIds)
 {
-    tree *fn = reinterpret_cast<tree*>(funcId);
+    tree fn;
+    if (funcId) {
+        fn = reinterpret_cast<tree>(funcId);
+    } else {
+        // FIXME.
+        fn = builtin_decl_explicit (BUILT_IN_CTZLL);
+    }
     auto_vec<tree> vargs (argIds.size());
     for (auto id : argIds) {
-        tree *arg = reinterpret_cast<tree*>(id);
-        vargs.quick_push (*arg);
+        tree arg = reinterpret_cast<tree>(id);
+        vargs.quick_push (arg);
     }
-    gcall *ret = gimple_build_call_vec (*fn, vargs);
-    basic_block *bb = reinterpret_cast<basic_block*>(blockId);
+    gcall *ret = gimple_build_call_vec (fn, vargs);
+    basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
         gimple_stmt_iterator si;
-        si = gsi_last_bb (*bb);
+        si = gsi_last_bb (bb);
         gsi_insert_after (&si, ret, GSI_NEW_STMT);
     }
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
@@ -614,17 +620,16 @@ bool GimpleToPluginOps::AddPhiArg(uint64_t phiId, uint64_t argId,
                                   uint64_t predId, uint64_t succId)
 {
     gphi *phi = reinterpret_cast<gphi*>(phiId);
-    tree *arg = reinterpret_cast<tree*>(argId);
-    basic_block *pred = reinterpret_cast<basic_block*>(predId);
-    basic_block *succ = reinterpret_cast<basic_block*>(succId);
-    edge e = find_edge(*pred, *succ);
+    tree arg = reinterpret_cast<tree>(argId);
+    basic_block pred = reinterpret_cast<basic_block>(predId);
+    basic_block succ = reinterpret_cast<basic_block>(succId);
+    edge e = find_edge(pred, succ);
     location_t loc;
-    tree var = *arg;
-    if (virtual_operand_p (var))
+    if (virtual_operand_p (arg))
     loc = UNKNOWN_LOCATION;
     else
-    loc = gimple_location (SSA_NAME_DEF_STMT (var));
-    add_phi_arg (phi, var, e, loc);
+    loc = gimple_location (SSA_NAME_DEF_STMT (arg));
+    add_phi_arg (phi, arg, e, loc);
     return true;
 }
 
@@ -633,8 +638,8 @@ uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
 {
     vector<tree> vargs (argIds.size());
     for (auto id : argIds) {
-        tree *arg = reinterpret_cast<tree*>(id);
-        vargs.push_back (*arg);
+        tree arg = reinterpret_cast<tree>(id);
+        vargs.push_back (arg);
     }
     gassign *ret;
     if (vargs.size() == 2) {
@@ -654,10 +659,10 @@ uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
     } else {
         printf("ERROR.\n");
     }
-    basic_block *bb = reinterpret_cast<basic_block*>(blockId);
+    basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
         gimple_stmt_iterator si;
-        si = gsi_last_bb (*bb);
+        si = gsi_last_bb (bb);
         gsi_insert_after (&si, ret, GSI_NEW_STMT);
     }
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
@@ -696,11 +701,11 @@ CondOp GimpleToPluginOps::BuildCondOp(uint64_t gcondId, uint64_t address,
                                       uint64_t fbaddr)
 {
     gcond *stmt = reinterpret_cast<gcond*>(gcondId);
-    tree *lhsPtr = gimple_cond_lhs_ptr(stmt);
+    tree lhsPtr = gimple_cond_lhs(stmt);
     uint64_t lhsId = reinterpret_cast<uint64_t>(
         reinterpret_cast<void*>(lhsPtr));
     Value LHS = TreeToValue(lhsId);
-    tree *rhsPtr = gimple_cond_rhs_ptr(stmt);
+    tree rhsPtr = gimple_cond_rhs(stmt);
     uint64_t rhsId = reinterpret_cast<uint64_t>(
         reinterpret_cast<void*>(rhsPtr));
     Value RHS = TreeToValue(rhsId);
@@ -719,19 +724,19 @@ AssignOp GimpleToPluginOps::BuildAssignOp(uint64_t gassignId)
     llvm::SmallVector<Value, 4> ops;
     ops.reserve(gimple_num_ops(stmt));
     uint64_t lhsId = reinterpret_cast<uint64_t>(
-            reinterpret_cast<void*>(gimple_assign_lhs_ptr(stmt)));
+            reinterpret_cast<void*>(gimple_assign_lhs(stmt)));
     ops.push_back(TreeToValue(lhsId));
     uint64_t rhs1Id = reinterpret_cast<uint64_t>(
-            reinterpret_cast<void*>(gimple_assign_rhs1_ptr(stmt)));
+            reinterpret_cast<void*>(gimple_assign_rhs1(stmt)));
     ops.push_back(TreeToValue(rhs1Id));
     if (gimple_assign_rhs2(stmt) != NULL_TREE) {
         uint64_t rhs2Id = reinterpret_cast<uint64_t>(
-                reinterpret_cast<void*>(gimple_assign_rhs2_ptr(stmt)));
+                reinterpret_cast<void*>(gimple_assign_rhs2(stmt)));
         ops.push_back(TreeToValue(rhs2Id));
     }
     if (gimple_assign_rhs3(stmt) != NULL_TREE) {
         uint64_t rhs3Id = reinterpret_cast<uint64_t>(
-                reinterpret_cast<void*>(gimple_assign_rhs3_ptr(stmt)));
+                reinterpret_cast<void*>(gimple_assign_rhs3(stmt)));
         ops.push_back(TreeToValue(rhs3Id));
     }
     IExprCode iCode = TranslateExprCode(gimple_assign_rhs_code(stmt));
@@ -752,60 +757,76 @@ Value GimpleToPluginOps::GetGphiResult(uint64_t id)
     return TreeToValue(retId);
 }
 
+Value GimpleToPluginOps::BuildIntCst(mlir::Type type, int64_t init)
+{
+    PluginTypeBase pluginType = type.dyn_cast<PluginTypeBase>();
+    uintptr_t typeId = pluginTypeTranslator.translateType(pluginType);
+    tree treeType = reinterpret_cast<tree>(typeId);
+    tree ret = build_int_cst(treeType, init);
+    uint64_t retId = reinterpret_cast<uint64_t>(
+            reinterpret_cast<void*>(ret));
+    return TreeToValue(retId);
+}
+
 Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
 {
-    tree *t = reinterpret_cast<tree*>(treeId);
-    tree treeType = TREE_TYPE(*t);
-    PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)treeType);
+    tree t = reinterpret_cast<tree>(treeId);
+    tree treeType = TREE_TYPE(t);
     bool readOnly = TYPE_READONLY(treeType);
-    switch (TREE_CODE(*t)) {
+    uintptr_t typeId = reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(treeType));
+    PluginTypeBase rPluginType = typeTranslator.translateType(typeId);
+    mlir::Value opValue;
+    switch (TREE_CODE(t)) {
+        case INTEGER_CST : {
+            unsigned HOST_WIDE_INT init = tree_to_uhwi(t);
+            // FIXME : AnyAttr!
+            mlir::Attribute initAttr = builder.getI64IntegerAttr(init);
+            opValue = builder.create<ConstOp>(
+                    builder.getUnknownLoc(), treeId, IDefineCode::IntCST,
+                    readOnly, initAttr, rPluginType);
+            break;
+        }
         case MEM_REF : {
-            tree operand0 = TREE_OPERAND(*t, 0);
+            tree operand0 = TREE_OPERAND(t, 0);
             tree op0Type = TREE_TYPE(operand0);
             bool op0ReadOnly = TYPE_READONLY(op0Type);
-            tree operand1 = TREE_OPERAND(*t, 1);
+            tree operand1 = TREE_OPERAND(t, 1);
             tree op1Type = TREE_TYPE(operand1);
             bool op1ReadOnly = TYPE_READONLY(op1Type);
             PluginTypeBase rPluginType0 = typeTranslator.translateType((intptr_t)op0Type);
             PluginTypeBase rPluginType1 = typeTranslator.translateType((intptr_t)op1Type);
             mlir::Value op0 = builder.create<PlaceholderOp>(
-                builder.getUnknownLoc(), (uint64_t)TREE_OPERAND(*t, 0),
+                builder.getUnknownLoc(), (uint64_t)TREE_OPERAND(t, 0),
                 IDefineCode::UNDEF, op0ReadOnly, rPluginType0);
             mlir::Value op1 = builder.create<PlaceholderOp>(
-                builder.getUnknownLoc(), (uint64_t)TREE_OPERAND(*t, 1),
+                builder.getUnknownLoc(), (uint64_t)TREE_OPERAND(t, 1),
                 IDefineCode::UNDEF, op1ReadOnly, rPluginType1);
-            mlir::Value memRef = builder.create<MemOp>(
+            opValue = builder.create<MemOp>(
                 builder.getUnknownLoc(), treeId, IDefineCode::MemRef, readOnly,
                 op0, op1, rPluginType);
-            return memRef;
-            break;
-        }
-        case INTEGER_CST : {
-            // mlir::Value intCst = builder.create<ConstOp>(
-            //     builder.getUnknownLoc(), treeId, tree_to_uhwi(*t), rPluginType);
             break;
         }
         case SSA_NAME : {
-            const char *ssaname = "";
-            if (DECL_NAME (*t)) {
-                ssaname = IDENTIFIER_POINTER (DECL_NAME (*t));
+            uint64_t ssaParmDecl = 0;
+            if (SSA_NAME_VAR (t) != NULL_TREE) {
+                ssaParmDecl = (TREE_CODE (SSA_NAME_VAR (t)) == PARM_DECL) ? 1 : 0;
             }
-            uint64_t ssaParmDecl = (TREE_CODE (SSA_NAME_VAR (*t)) == PARM_DECL) ? 1 : 0;
-            uint64_t version = SSA_NAME_VERSION(*t);
-            uint64_t defStmtId = reinterpret_cast<uint64_t>(SSA_NAME_DEF_STMT(*t));
-            uint64_t defOpId = reinterpret_cast<uint64_t>(SSA_NAME_VAR(*t));
-            return builder.create<SSAOp>(builder.getUnknownLoc(), treeId,
-                                         IDefineCode::SSA, (uint64_t)TYPE_READONLY(*t),
-                                         ssaname, ssaParmDecl, version,
-                                         defStmtId, defOpId);
+            uint64_t version = SSA_NAME_VERSION(t);
+            uint64_t defStmtId = reinterpret_cast<uint64_t>(SSA_NAME_DEF_STMT(t));
+            uint64_t defOpId = reinterpret_cast<uint64_t>(SSA_NAME_VAR(t));
+            uint64_t nameSR = reinterpret_cast<uint64_t>(SSA_NAME_VAR(t));
+            opValue = builder.create<SSAOp>(builder.getUnknownLoc(), treeId,
+                                         IDefineCode::SSA, (uint64_t)TYPE_READONLY(t),
+                                         nameSR, ssaParmDecl, version,
+                                         defStmtId, defOpId, rPluginType);
             break;
         }
-        default:
+        default: {
+            opValue = builder.create<PlaceholderOp>(builder.getUnknownLoc(),
+                    treeId, IDefineCode::UNDEF, readOnly, rPluginType);
             break;
+        }
     }
-    mlir::Value opValue = builder.create<PlaceholderOp>(
-            builder.getUnknownLoc(), treeId,
-            IDefineCode::UNDEF, readOnly, rPluginType);
     return opValue;
 }
 
@@ -915,6 +936,54 @@ vector<PhiOp> GimpleToPluginOps::GetPhiOpsInsideBlock(uint64_t bb)
 bool GimpleToPluginOps::IsDomInfoAvailable()
 {
     return dom_info_available_p (CDI_DOMINATORS);
+}
+
+Value GimpleToPluginOps::CreateNewDefFor(uint64_t oldId, uint64_t opId, uint64_t defId)
+{
+    tree old_name = reinterpret_cast<tree>(oldId);
+    gimple *stmt = reinterpret_cast<gimple*>(opId);
+    tree defTree = reinterpret_cast<tree>(defId);
+    tree ret = create_new_def_for(old_name, stmt, &defTree);
+    uint64_t retId = reinterpret_cast<uint64_t>(
+            reinterpret_cast<void*>(ret));
+    return TreeToValue(retId);
+}
+
+mlir::Value GimpleToPluginOps::GetCurrentDefFor(uint64_t varId)
+{
+    tree var = reinterpret_cast<tree>(varId);
+    tree ret = get_current_def(var);
+    uint64_t retId = reinterpret_cast<uint64_t>(
+            reinterpret_cast<void*>(ret));
+    return TreeToValue(retId);
+}
+
+bool GimpleToPluginOps::SetCurrentDefFor(uint64_t varId, uint64_t defId)
+{
+    tree varTree = reinterpret_cast<tree>(varId);
+    tree defTree = reinterpret_cast<tree>(defId);
+    set_current_def(varTree, defTree);
+    return true;
+}
+
+Value GimpleToPluginOps::CopySsaName(uint64_t id)
+{
+    tree ssaTree = reinterpret_cast<tree>(id);
+    tree ret = copy_ssa_name(ssaTree);
+    uint64_t retId = reinterpret_cast<uint64_t>(
+            reinterpret_cast<void*>(ret));
+    return TreeToValue(retId);
+}
+
+Value GimpleToPluginOps::MakeSsaName(mlir::Type type)
+{
+    PluginTypeBase pluginType = type.dyn_cast<PluginTypeBase>();
+    uintptr_t typeId = pluginTypeTranslator.translateType(pluginType);
+    tree treeType = reinterpret_cast<tree>(typeId);
+    tree ret = make_ssa_name(treeType);
+    uint64_t retId = reinterpret_cast<uint64_t>(
+            reinterpret_cast<void*>(ret));
+    return TreeToValue(retId);
 }
 
 } // namespace PluginIR
