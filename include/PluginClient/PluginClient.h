@@ -37,6 +37,7 @@
 #include "gcc-plugin.h"
 #include "PluginAPI/PluginClientAPI.h"
 #include "PluginClient/PluginLog.h"
+#include "Dialect/PluginDialect.h"
 
 namespace PinClient {
 using std::cout;
@@ -128,7 +129,7 @@ public:
     Json::Value ValueJsonSerialize(mlir::Value value);
     /* 将Type类型数据序列化 */
     Json::Value TypeJsonSerialize(PluginIR::PluginTypeBase& type);
-    PluginIR::PluginTypeBase TypeJsonDeSerialize(const string& data);
+    PluginIR::PluginTypeBase TypeJsonDeSerialize(const string& data, mlir::MLIRContext &context);
     /* 获取gcc插件数据并进行IR转换，将转换后的数据序列化返回给server。param：函数入参序列化后的数据 */
     void IRTransBegin(const string& funname, const string& param);
     /* 从配置文件读取初始化信息 */

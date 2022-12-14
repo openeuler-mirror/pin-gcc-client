@@ -90,7 +90,7 @@ private:
         if (TREE_CODE(type) == VOID_TYPE)
             return PluginVoidType::get(&context);
         if (TREE_CODE(type) == POINTER_TYPE)
-            return PluginPointerType::get(&context, translatePrimitiveType(TREE_TYPE(type)));
+            return PluginPointerType::get(&context, translatePrimitiveType(TREE_TYPE(type)), TYPE_READONLY(TREE_TYPE(type)) ? 1 : 0);
         return PluginUndefType::get(&context);
     }
 
@@ -170,8 +170,10 @@ private:
         }
         if (auto Ty = type.dyn_cast<PluginPointerType>()) {
             mlir::Type elmType = Ty.getElementType();
+            unsigned elmConst = Ty.isReadOnlyElem();
             auto ty = elmType.dyn_cast<PluginTypeBase>();
             tree elmTy = translatePrimitiveType(ty);
+            TYPE_READONLY(elmTy) = elmConst ? 1 : 0;
             return build_pointer_type(elmTy);
         }
         return NULL;
