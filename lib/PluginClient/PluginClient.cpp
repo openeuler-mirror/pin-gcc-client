@@ -443,6 +443,20 @@ Json::Value PluginClient::ValueJsonSerialize(mlir::Value data)
     return root;
 }
 
+Json::Value PluginClient::MemOpJsonSerialize(MemOp& data)
+{
+    Json::Value root; 
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    mlir::Value base = data.GetBase();
+    mlir::Value offset = data.GetOffset();
+    root["base"] = ValueJsonSerialize(base);
+    root["offset"] = ValueJsonSerialize(offset);
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
+}
+
 void PluginClient::IRTransBegin(const string& funcName, const string& param)
 {
     string result;
@@ -823,6 +837,41 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         PluginAPI::PluginClientAPI clientAPI(context);
         bool ret = clientAPI.IsDomInfoAvailable();
         this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
+	} else if (funcName == "ConfirmValue") {
+        /// Json格式
+        /// {
+        ///     "valId":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string valIdKey = "valId";
+        uint64_t valId = atol(root[valIdKey].asString().c_str());
+        mlir::Value v = clientAPI.GetValue(valId);
+        Json::Value valueJson = ValueJsonSerialize(v);
+        result = valueJson.toStyledString();
+        this->ReceiveSendMsg("ValueResult", result);
+    } else if (funcName == "BuildMemRef") {
+        /// Json格式
+        /// {
+        ///     "baseId":"xxxx",
+        ///     "offsetId":"xxxx",
+        ///     "type":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string baseIdKey = "baseId";
+        std::string offsetIdKey = "offsetId";
+        std::string typeKey = "type";
+        uint64_t baseId = atol(root[baseIdKey].asString().c_str());
+        uint64_t offsetId = atol(root[offsetIdKey].asString().c_str());
+        Json::Value type = root[typeKey];
+        PluginIR::PluginTypeBase pType = TypeJsonDeSerialize(type.toStyledString(), context);
+        mlir::Value v = clientAPI.BuildMemRef(pType, baseId, offsetId);
+        Json::Value valueJson = ValueJsonSerialize(v);
+        result = valueJson.toStyledString();
+        this->ReceiveSendMsg("ValueResult", result);
     } else {
         LOGW("function: %s not found!\n", funcName.c_str());
     }

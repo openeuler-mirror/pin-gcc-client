@@ -65,11 +65,75 @@ void LoopOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 // PlaceholderOp
 
 void PlaceholderOp::build(OpBuilder &builder, OperationState &state,
-                          uint64_t id, IDefineCode defCode, Type retType) {
+                          uint64_t id, IDefineCode defCode, bool readOnly,
+                          Type retType)
+{
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addAttribute("defCode",
         builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
     state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// MemOp
+
+void MemOp::build(OpBuilder &builder, OperationState &state,
+                  uint64_t id, IDefineCode defCode, bool readOnly,
+                  Value addr, Value offset, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addOperands({addr, offset});
+    state.addAttribute("defCode",
+                       builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    if (retType) state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// SSAOp
+
+void SSAOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                  IDefineCode defCode, bool readOnly,StringRef ssaName,
+                  uint64_t version, uint64_t defOpId)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+                       builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addAttribute("ssaName", builder.getStringAttr(ssaName));
+    state.addAttribute("version", builder.getI64IntegerAttr(version));
+    state.addAttribute("defOpId", builder.getI64IntegerAttr(defOpId));
+}
+
+//===----------------------------------------------------------------------===//
+// ConstOp
+
+void ConstOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                    IDefineCode defCode, bool readOnly, Attribute init,
+                    Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+                       builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addAttribute("init", init);
+    if (retType) state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// PointerOp
+
+void PointerOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                      IDefineCode defCode, bool readOnly, Type retType,
+                      bool pointeeReadOnly)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addTypes(retType);
+    state.addAttribute("pointeeReadOnly", builder.getBoolAttr(pointeeReadOnly));
 }
 
 //===----------------------------------------------------------------------===//

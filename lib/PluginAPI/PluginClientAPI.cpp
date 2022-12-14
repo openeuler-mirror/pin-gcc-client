@@ -177,4 +177,15 @@ bool PluginClientAPI::IsDomInfoAvailable()
     return gimpleConversion.IsDomInfoAvailable();
 }
 
+mlir::Value PluginClientAPI::GetValue(uint64_t valId)
+{
+    return gimpleConversion.TreeToValue(valId);
+}
+
+mlir::Value PluginClientAPI::BuildMemRef(PluginIR::PluginTypeBase type,
+                                         uint64_t baseId, uint64_t offsetId)
+{
+    return gimpleConversion.BuildMemRef(type, baseId, offsetId);
+}
+
 } // namespace PluginAPI

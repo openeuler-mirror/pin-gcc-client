@@ -82,6 +82,7 @@ public:
     PhiOp BuildPhiOp(uint64_t);
     mlir::Value GetGphiResult(uint64_t);
     mlir::Value TreeToValue(uint64_t);
+	mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t);
     bool UpdateSSA();
     vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t);
     bool IsDomInfoAvailable();

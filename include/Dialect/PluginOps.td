@@ -138,18 +138,91 @@ def AssignOp : Plugin_Op<"assign", [NoSideEffect]> {
   // let printer = [{ return ::print(p, *this); }];
 }
 
-def PlaceholderOp : Plugin_Op<"placeholder", [NoSideEffect]> {
-  let summary = "PlaceHolder.";
-  let description = [{TODO}];
-  let arguments = (ins UI64Attr:$id,
-                       OptionalAttr<IDefineCodeAttr>:$defCode);
+class Placeholder<string mnemonic> : Plugin_Op<mnemonic, [NoSideEffect]> {
+  dag commonArgs = (ins UI64Attr:$id,
+                        OptionalAttr<IDefineCodeAttr>:$defCode,
+                        OptionalAttr<BoolAttr>:$readOnly);
   let results = (outs AnyType);
-  let builders = [
-    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "Type":$retType)>
-  ];
+  let arguments = commonArgs;
   let extraClassDeclaration = [{
     Type getResultType() { return this->getOperation()->getResult(0).getType(); }
   }];
+}
+
+class Pointer<string mnemonic> : Placeholder<mnemonic> {
+  dag PointerArgs = (ins BoolAttr:$PointeeReadOnly);
+  let arguments = !con(commonArgs, PointerArgs);
+}
+
+class SSA<string mnemonic> : Placeholder<mnemonic> {
+  dag SSAArgs = (ins StrAttr:$SSAName,
+                     UI64Attr:$version,
+                     UI64Attr:$definingId);
+  let arguments = !con(commonArgs, SSAArgs);
+}
+
+class MemRef<string mnemonic> : Placeholder<mnemonic> {
+    dag MemRefArgs = (ins AnyType:$base,
+                          AnyType:$offset);
+    let arguments = !con(commonArgs, MemRefArgs);
+}
+
+class Constant<string mnemonic> : Placeholder<mnemonic> {
+    dag ConstArgs = (ins AnyType:$init);
+    let arguments = !con(commonArgs, ConstArgs);
+}
+
+def PlaceholderOp : Placeholder<"palceholder"> {
+  let summary = "PlaceHolder";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+                      "bool":$readOnly, "Type":$retType)>
+  ];
+}
+
+def PointerOp : Pointer<"pointer"> {
+  let summary = "pointer";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+                      "bool":$readOnly, "Type":$retType,
+                      "bool":$pointerReadOnly)>
+    ];
+}
+
+def MemOp : MemRef<"MemRef"> {
+  let summary = "Memory reference op";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,
+                      "Value":$base, "Value":$offset, "Type":$retType)>
+  ];
+  let results = (outs AnyType);
+  let extraClassDeclaration = [{
+    Type getResultType() { return this->getOperation()->getResult(0).getType(); }
+    Value GetBase() { return getOperand(0); }
+    Value GetOffset() { return getOperand(1); }
+  }];
+}
+
+def SSAOp : SSA<"SSA"> {
+  let summary = "SSA";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,
+                      "StringRef":$SSAName, "uint64_t":$version,
+                      "uint64_t":$defOpId)>
+  ];
+}
+
+def ConstOp : Constant<"constant value"> {
+  let summary = "const value";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,
+                      "Attribute":$init, "Type":$retType)>
+  ];
 }
 
 def BaseOp : Plugin_Op<"statement_base", [NoSideEffect]> {
