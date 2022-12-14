@@ -420,8 +420,8 @@ Json::Value PluginClient::SSAOpJsonSerialize(SSAOp& data)
     Json::Value item;
     item["id"] = std::to_string(data.idAttr().getInt());
     item["defCode"] = std::to_string(data.defCodeAttr().getInt());
-    item["readOnly"] = std::to_string(data.readOnlyAttr().getBoolAttr());
-    item["ssaName"] = std::to_string(data.SSANameAttr().getValue().str().c_str());
+    item["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    item["ssaName"] = data.SSANameAttr().getValue().str().c_str();
     item["ssaParmDecl"] = std::to_string(data.ssaParmDeclAttr().getInt());
     item["version"] = std::to_string(data.versionAttr().getInt());
     item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
@@ -463,9 +463,10 @@ Json::Value PluginClient::ValueJsonSerialize(mlir::Value data)
 
 Json::Value PluginClient::MemOpJsonSerialize(MemOp& data)
 {
-    Json::Value root; 
+    Json::Value root;
     root["id"] = std::to_string(data.idAttr().getInt());
     root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+	root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
     mlir::Value base = data.GetBase();
     mlir::Value offset = data.GetOffset();
     root["base"] = ValueJsonSerialize(base);
