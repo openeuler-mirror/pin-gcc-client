@@ -90,6 +90,7 @@ private:
     GimpleToPluginOps () = delete;
     mlir::OpBuilder builder;
     TypeFromPluginIRTranslator typeTranslator;
+    TypeToPluginIRTranslator pluginTypeTranslator;
 
     // process basic_block
     std::unique_ptr<detail::BlockFromGimpleTranslatorImpl> bbTranslator;

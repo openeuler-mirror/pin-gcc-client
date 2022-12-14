@@ -57,6 +57,17 @@ private:
     std::unique_ptr<detail::TypeFromPluginIRTranslatorImpl> impl;
 };
 
+class TypeToPluginIRTranslator {
+public:
+    TypeToPluginIRTranslator ();
+    ~TypeToPluginIRTranslator ();
+
+    uintptr_t translateType (PluginTypeBase type);
+
+private:
+    std::unique_ptr<detail::TypeToPluginIRTranslatorImpl> impl;
+};
+
 } // namespace PluginIR
 
 #endif // MLIR_TAGET_PLUGINIR_TYPETRANSLATION_H

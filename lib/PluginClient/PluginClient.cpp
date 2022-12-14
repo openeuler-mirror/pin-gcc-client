@@ -101,14 +101,56 @@ Json::Value PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type)
         item["signed"] = "0";
     }
 
-    if (type.getReadOnlyFlag() == 1) {
-        item["readonly"] = "1";
-    }else {
-        item["readonly"] = "0";
-    }
-
     root["type"] = item;
     return root;
+}
+
+PluginIR::PluginTypeBase PluginClient::TypeJsonDeSerialize(const string& data)
+{
+    printf("PluginClient::TypeJsonDeSerialize data : \n%s\n", data.c_str());
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    Json::Value root;
+    Json::Reader reader;
+    Json::Value node;
+    reader.parse(data, root);
+
+    PluginIR::PluginTypeBase baseType;
+
+    Json::Value type = root["type"];
+    uint64_t id = GetID(type["id"]);
+    PluginIR::PluginTypeID PluginTypeId = static_cast<PluginIR::PluginTypeID>(id);
+
+    if (type["signed"] && (id >= static_cast<uint64_t>(PluginIR::UIntegerTy1ID) 
+        && id <= static_cast<uint64_t>(PluginIR::IntegerTy64ID))) {
+        string s = type["signed"].asString();
+        uint64_t width = GetID(type["width"]);
+        if (s == "1") {
+            baseType = PluginIR::PluginIntegerType::get(&context, width, PluginIR::PluginIntegerType::Signed);
+        }
+        else {
+            baseType = PluginIR::PluginIntegerType::get(&context, width, PluginIR::PluginIntegerType::Unsigned);
+        }
+    }
+    else if (type["width"] && (id == static_cast<uint64_t>(PluginIR::FloatTyID)
+             || id == static_cast<uint64_t>(PluginIR::DoubleTyID)) ) {
+        uint64_t width = GetID(type["width"]);
+        baseType = PluginIR::PluginFloatType::get(&context, width);
+    }else if (id == static_cast<uint64_t>(PluginIR::PointerTyID)) {
+        mlir::Type elemTy = TypeJsonDeSerialize(type["elementType"].toStyledString());
+        auto ty = elemTy.dyn_cast<PluginIR::PluginTypeBase>();
+        printf("elemTy id is : %d\n", static_cast<int>(ty.getPluginTypeID()));
+        baseType = PluginIR::PluginPointerType::get(&context, elemTy);
+    }else {
+        if (PluginTypeId == PluginIR::VoidTyID)
+            baseType = PluginIR::PluginVoidType::get(&context);
+        if (PluginTypeId == PluginIR::BooleanTyID)
+            baseType = PluginIR::PluginBooleanType::get(&context);
+        if (PluginTypeId == PluginIR::UndefTyID)
+            baseType = PluginIR::PluginUndefType::get(&context);
+    }
+
+    return baseType;
 }
 
 void PluginClient::FunctionOpJsonSerialize(vector<FunctionOp>& data, string& out)

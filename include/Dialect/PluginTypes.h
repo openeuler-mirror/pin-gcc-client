@@ -62,19 +62,16 @@ enum PluginTypeID {
 class PluginTypeBase : public Type {
 public:
     using Type::Type;
-
+    
     PluginTypeID getPluginTypeID ();
     unsigned getPluginIntOrFloatBitWidth ();
     bool isSignedPluginInteger ();
     bool isUnsignedPluginInteger ();
     void setTypeSize (unsigned size);
-    void setReadOnlyFlag (unsigned readOnlyFlag);
     unsigned getTypeSize ();
-    unsigned getReadOnlyFlag ();
 
 private:
     unsigned size;
-    unsigned readOnlyFlag;
 }; // class PluginTypeBase
 
 namespace detail {
@@ -152,10 +149,6 @@ public:
     PluginTypeID getPluginTypeID ();
 
 }; // class PluginBooleanType
-
-//===----------------------------------------------------------------------===//
-// Printing and parsing. TODO
-//===----------------------------------------------------------------------===//
 
 } // namespace PluginIR
 
