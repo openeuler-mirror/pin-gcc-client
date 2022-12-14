@@ -76,10 +76,10 @@ namespace detail {
     };
 
     struct PluginPointerTypeStorage : public TypeStorage {
-        using KeyTy = Type;
+        using KeyTy = std::tuple<Type, unsigned>;
 
         PluginPointerTypeStorage(const KeyTy &key)
-            : pointee(key) {}
+            : pointee(std::get<0>(key)), readOnlyPointee(std::get<1>(key)) {}
 
         static PluginPointerTypeStorage *construct(TypeStorageAllocator &allocator,
                                             KeyTy key) {
@@ -88,10 +88,11 @@ namespace detail {
         }
 
         bool operator==(const KeyTy &key) const {
-            return KeyTy(pointee) == key;
+            return std::make_tuple(pointee, readOnlyPointee) == key;
         }
 
         Type pointee;
+        unsigned readOnlyPointee;
     };
 } // namespace detail
 } // namespace PluginIR
@@ -282,7 +283,12 @@ Type PluginPointerType::getElementType()
     return getImpl()->pointee;
 }
 
-PluginPointerType PluginPointerType::get (MLIRContext *context, Type pointee)
+unsigned PluginPointerType::isReadOnlyElem()
 {
-    return Base::get(context, pointee);
+    return getImpl()->readOnlyPointee;
+}
+
+PluginPointerType PluginPointerType::get (MLIRContext *context, Type pointee, unsigned readOnlyPointee)
+{
+    return Base::get(context, pointee, readOnlyPointee);
 }

@@ -71,6 +71,12 @@ int PluginClient::GetEvent(InjectPoint inject, plugin_event *event)
     return -1;
 }
 
+static uintptr_t GetID(Json::Value node)
+{
+    string id = node.asString();
+    return atol(id.c_str());
+}
+
 Json::Value PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type)
 {
     Json::Value root;
@@ -86,6 +92,11 @@ Json::Value PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type)
     if (auto elemTy = type.dyn_cast<PluginIR::PluginPointerType>()) {
         auto baseTy = elemTy.getElementType().dyn_cast<PluginIR::PluginTypeBase>();
         item["elementType"] = TypeJsonSerialize(baseTy);
+        if (elemTy.isReadOnlyElem()) {
+            item["elemConst"] = "1";
+        }else {
+            item["elemConst"] = "0";
+        }
     }
 
     if (type.getPluginIntOrFloatBitWidth() != 0) {
@@ -105,11 +116,8 @@ Json::Value PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type)
     return root;
 }
 
-PluginIR::PluginTypeBase PluginClient::TypeJsonDeSerialize(const string& data)
+PluginIR::PluginTypeBase PluginClient::TypeJsonDeSerialize(const string& data, mlir::MLIRContext &context)
 {
-    printf("PluginClient::TypeJsonDeSerialize data : \n%s\n", data.c_str());
-    mlir::MLIRContext context;
-    context.getOrLoadDialect<PluginDialect>();
     Json::Value root;
     Json::Reader reader;
     Json::Value node;
@@ -137,10 +145,9 @@ PluginIR::PluginTypeBase PluginClient::TypeJsonDeSerialize(const string& data)
         uint64_t width = GetID(type["width"]);
         baseType = PluginIR::PluginFloatType::get(&context, width);
     }else if (id == static_cast<uint64_t>(PluginIR::PointerTyID)) {
-        mlir::Type elemTy = TypeJsonDeSerialize(type["elementType"].toStyledString());
+        mlir::Type elemTy = TypeJsonDeSerialize(type["elementType"].toStyledString(), context);
         auto ty = elemTy.dyn_cast<PluginIR::PluginTypeBase>();
-        printf("elemTy id is : %d\n", static_cast<int>(ty.getPluginTypeID()));
-        baseType = PluginIR::PluginPointerType::get(&context, elemTy);
+        baseType = PluginIR::PluginPointerType::get(&context, elemTy, type["elemConst"].asString() == "1" ? 1 : 0);
     }else {
         if (PluginTypeId == PluginIR::VoidTyID)
             baseType = PluginIR::PluginVoidType::get(&context);
