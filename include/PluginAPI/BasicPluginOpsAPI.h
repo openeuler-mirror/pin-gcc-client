@@ -84,6 +84,7 @@ public:
     virtual mlir::Value GetValue(uint64_t) = 0;
     virtual mlir::Value BuildMemRef(PluginTypeBase, uint64_t, uint64_t) = 0;
     virtual void RedirectFallthroughTarget(uint64_t, uint64_t) = 0;
+    virtual void RemoveEdge(uint64_t, uint64_t) = 0;
 }; // class BasicPluginOpsAPI
 } // namespace PluginAPI
 
