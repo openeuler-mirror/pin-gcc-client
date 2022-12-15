@@ -57,8 +57,11 @@ public:
     virtual void AddLoop(uint64_t, uint64_t, uint64_t) = 0;
     virtual uint64_t AllocateNewLoop(void) = 0;
     virtual void DeleteLoop(uint64_t) = 0;
+    virtual void AddBlockToLoop(uint64_t, uint64_t) = 0;
     virtual uint64_t GetHeader(uint64_t) = 0;
     virtual uint64_t GetLatch(uint64_t) = 0;
+    virtual void SetHeader(uint64_t, uint64_t) = 0;
+    virtual void SetLatch(uint64_t, uint64_t) = 0;
     virtual vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t) = 0;
     virtual std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t) = 0;
     virtual LoopOp GetBlockLoopFather(uint64_t) = 0;
