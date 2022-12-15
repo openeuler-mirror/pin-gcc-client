@@ -95,6 +95,7 @@ public:
     mlir::Value MakeSsaName(mlir::Type);
 
     void RedirectFallthroughTarget(uint64_t, uint64_t);
+    void RemoveEdge(uint64_t, uint64_t);
 private:
     GimpleToPluginOps () = delete;
     mlir::OpBuilder builder;

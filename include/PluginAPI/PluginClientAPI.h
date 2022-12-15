@@ -84,6 +84,7 @@ public:
     mlir::Value CreateNewDef(uint64_t, uint64_t, uint64_t);
 
     void RedirectFallthroughTarget(uint64_t, uint64_t) override;
+    void RemoveEdge(uint64_t, uint64_t) override;
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;
 }; // class PluginClientAPI

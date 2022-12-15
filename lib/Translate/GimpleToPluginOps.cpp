@@ -467,6 +467,15 @@ void GimpleToPluginOps::RedirectFallthroughTarget(uint64_t src, uint64_t dest)
     redirect_edge_and_branch (single_succ_edge(srcbb), destbb);
 }
 
+void GimpleToPluginOps::RemoveEdge(uint64_t src, uint64_t dest)
+{
+    basic_block srcbb = reinterpret_cast<basic_block>(reinterpret_cast<void*>(src));
+    basic_block destbb = reinterpret_cast<basic_block>(reinterpret_cast<void*>(dest));
+    edge e = find_edge(srcbb, destbb);
+    assert(e);
+    remove_edge(e);
+}
+
 FunctionOp GimpleToPluginOps::BuildFunctionOp(uint64_t functionId)
 {
     function *fn = reinterpret_cast<function*>(functionId);

@@ -233,4 +233,9 @@ void PluginClientAPI::RedirectFallthroughTarget(uint64_t src, uint64_t dest)
     return gimpleConversion.RedirectFallthroughTarget(src, dest);
 }
 
+void PluginClientAPI::RemoveEdge(uint64_t src, uint64_t dest)
+{
+    return gimpleConversion.RemoveEdge(src, dest);
+}
+
 } // namespace PluginAPI

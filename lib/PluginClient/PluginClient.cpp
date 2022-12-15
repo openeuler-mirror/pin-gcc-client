@@ -941,7 +941,23 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         mlir::Value ret = clientAPI.CreateNewDef(valueId, opId, defId);
         this->ReceiveSendMsg("ValueResult",
                              ValueJsonSerialize(ret).toStyledString());
-	} else if (funcName == "ConfirmValue") {
+    } else if (funcName == "RemoveEdge") {
+        /// Json格式
+        /// {
+        ///     "src":"xxxx",
+        ///     "dest":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string srcKey = "src";
+        uint64_t src = atol(root[srcKey].asString().c_str());
+        std::string destKey = "dest";
+        uint64_t dest = atol(root[destKey].asString().c_str());
+        clientAPI.RemoveEdge(src, dest);
+        NopJsonSerialize(result);
+        this->ReceiveSendMsg("VoidResult", result);
+    } else if (funcName == "ConfirmValue") {
         /// Json格式
         /// {
         ///     "valId":"xxxx",
