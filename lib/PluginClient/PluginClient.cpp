@@ -397,7 +397,6 @@ Json::Value PluginClient::PhiOpJsonSerialize(PhiOp& data)
     item["id"] = std::to_string(data.idAttr().getInt());
     item["capacity"] = std::to_string(data.capacityAttr().getInt());
     item["nArgs"] = std::to_string(data.nArgsAttr().getInt());
-    item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
     size_t opIdx = 0;
     for (mlir::Value v : data.operands()) {
         string input = "input" + std::to_string(opIdx++);
@@ -428,7 +427,6 @@ Json::Value PluginClient::AssignOpJsonSerialize(AssignOp& data)
     Json::Value item;
     item["id"] = std::to_string(data.idAttr().getInt());
     item["exprCode"] = std::to_string(data.exprCodeAttr().getInt());
-    item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
     size_t opIdx = 0;
     for (mlir::Value v : data.operands()) {
         string input = "input" + std::to_string(opIdx++);

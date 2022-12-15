@@ -187,11 +187,10 @@ void CondOp::build(OpBuilder &builder, OperationState &state,
 
 void PhiOp::build(OpBuilder &builder, OperationState &state,
                    uint64_t id, uint32_t capacity, uint32_t nArgs,
-                   uint64_t defStmtId, ArrayRef<Value> operands, Type resultType) {
+                   ArrayRef<Value> operands, Type resultType) {
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addAttribute("capacity", builder.getI32IntegerAttr(capacity));
     state.addAttribute("nArgs", builder.getI32IntegerAttr(nArgs));
-    state.addAttribute("defStmtId", builder.getI64IntegerAttr(defStmtId));
     state.addOperands(operands);
     state.addTypes(resultType);
 }
@@ -200,13 +199,12 @@ void PhiOp::build(OpBuilder &builder, OperationState &state,
 // AssignOp
 
 void AssignOp::build(OpBuilder &builder, OperationState &state,
-                   uint64_t id, IExprCode exprCode, uint64_t defStmtId,
+                   uint64_t id, IExprCode exprCode,
                    ArrayRef<Value> operands, Type resultType)
 {
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addAttribute("exprCode",
         builder.getI32IntegerAttr(static_cast<int32_t>(exprCode)));
-    state.addAttribute("defStmtId", builder.getI64IntegerAttr(defStmtId));
     state.addOperands(operands);
     state.addTypes(resultType);
 }
