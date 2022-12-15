@@ -237,6 +237,11 @@ mlir::Value PluginClientAPI::GetValue(uint64_t valId)
     return gimpleConversion.TreeToValue(valId);
 }
 
+void PluginClientAPI::DebugValue(uint64_t valId)
+{
+    gimpleConversion.DebugValue(valId);
+}
+
 mlir::Value PluginClientAPI::BuildMemRef(PluginIR::PluginTypeBase type,
                                          uint64_t baseId, uint64_t offsetId)
 {

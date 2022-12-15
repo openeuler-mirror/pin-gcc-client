@@ -85,6 +85,7 @@ public:
     virtual vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) = 0;
     virtual bool IsDomInfoAvailable() = 0;
     virtual mlir::Value GetValue(uint64_t) = 0;
+    virtual void DebugValue(uint64_t) = 0;
     virtual mlir::Value BuildMemRef(PluginTypeBase, uint64_t, uint64_t) = 0;
     virtual void RedirectFallthroughTarget(uint64_t, uint64_t) = 0;
     virtual void RemoveEdge(uint64_t, uint64_t) = 0;

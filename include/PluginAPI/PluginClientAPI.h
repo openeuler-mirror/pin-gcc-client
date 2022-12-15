@@ -76,6 +76,7 @@ public:
     vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) override;
     bool IsDomInfoAvailable() override;
     mlir::Value GetValue(uint64_t) override;
+    void DebugValue(uint64_t) override;
     mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t) override;
 
     mlir::Value GetCurrentDefFromSSA(uint64_t) override;

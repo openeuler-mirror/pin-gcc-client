@@ -1040,6 +1040,19 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         Json::Value valueJson = ValueJsonSerialize(v);
         result = valueJson.toStyledString();
         this->ReceiveSendMsg("ValueResult", result);
+    } else if (funcName == "DebugValue") {
+        /// Json格式
+        /// {
+        ///     "valId":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string valIdKey = "valId";
+        uint64_t valId = atol(root[valIdKey].asString().c_str());
+        clientAPI.DebugValue(valId);
+        NopJsonSerialize(result);
+        this->ReceiveSendMsg("ValueResult", result);
     } else {
         LOGW("function: %s not found!\n", funcName.c_str());
     }
