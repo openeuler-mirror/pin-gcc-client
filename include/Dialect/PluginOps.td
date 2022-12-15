@@ -106,12 +106,10 @@ def PhiOp : Plugin_Op<"phi", [NoSideEffect]> {
   let arguments = (ins UI64Attr:$id,
                        UI32Attr:$capacity,
                        UI32Attr:$nArgs,
-                       UI64Attr:$defStmtId,
                        Variadic<AnyType>:$operands);
   let results = (outs AnyType:$result);
   let builders = [
-    OpBuilderDAG<(ins "uint64_t":$id, "uint32_t":$capacity,
-                  "uint32_t":$nArgs, "uint64_t":$defStmtId,
+    OpBuilderDAG<(ins "uint64_t":$id, "uint32_t":$capacity, "uint32_t":$nArgs,
                   "ArrayRef<Value>":$operands, "Type":$resultType)>
   ];
   let extraClassDeclaration = [{
@@ -125,11 +123,10 @@ def AssignOp : Plugin_Op<"assign", [NoSideEffect]> {
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id,
                        IExprCodeAttr:$exprCode,
-                       UI64Attr:$defStmtId,
                        Variadic<AnyType>:$operands);
   let results = (outs AnyType:$result);
   let builders = [
-    OpBuilderDAG<(ins "uint64_t":$id, "IExprCode":$exprCode, "uint64_t":$defStmtId,
+    OpBuilderDAG<(ins "uint64_t":$id, "IExprCode":$exprCode,
                   "ArrayRef<Value>":$operands, "Type":$resultType)>
   ];
   let extraClassDeclaration = [{

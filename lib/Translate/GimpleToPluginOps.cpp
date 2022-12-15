@@ -572,9 +572,8 @@ PhiOp GimpleToPluginOps::BuildPhiOp(uint64_t gphiId)
     PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
     uint32_t capacity = gimple_phi_capacity(stmt);
     uint32_t nArgs = gimple_phi_num_args(stmt);
-    uint64_t defStmtId = reinterpret_cast<uint64_t>(stmt);
     PhiOp ret = builder.create<PhiOp>(builder.getUnknownLoc(),
-                                      gphiId, capacity, nArgs, defStmtId, ops, rPluginType);
+                                      gphiId, capacity, nArgs, ops, rPluginType);
     return ret;
 }
 
@@ -770,11 +769,10 @@ AssignOp GimpleToPluginOps::BuildAssignOp(uint64_t gassignId)
         ops.push_back(TreeToValue(rhs3Id));
     }
     IExprCode iCode = TranslateExprCode(gimple_assign_rhs_code(stmt));
-    uint64_t defStmtId = reinterpret_cast<uint64_t>(stmt);
     tree returnType = TREE_TYPE(gimple_assign_lhs(stmt));
     PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
     AssignOp ret = builder.create<AssignOp>(
-            builder.getUnknownLoc(), gassignId, iCode, defStmtId, ops, rPluginType);
+            builder.getUnknownLoc(), gassignId, iCode, ops, rPluginType);
     return ret;
 }
 
