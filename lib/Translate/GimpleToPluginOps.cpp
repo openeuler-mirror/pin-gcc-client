@@ -816,19 +816,9 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
         }
         case MEM_REF : {
             tree operand0 = TREE_OPERAND(t, 0);
-            tree op0Type = TREE_TYPE(operand0);
-            bool op0ReadOnly = TYPE_READONLY(op0Type);
             tree operand1 = TREE_OPERAND(t, 1);
-            tree op1Type = TREE_TYPE(operand1);
-            bool op1ReadOnly = TYPE_READONLY(op1Type);
-            PluginTypeBase rPluginType0 = typeTranslator.translateType((intptr_t)op0Type);
-            PluginTypeBase rPluginType1 = typeTranslator.translateType((intptr_t)op1Type);
-            mlir::Value op0 = builder.create<PlaceholderOp>(
-                builder.getUnknownLoc(), (uint64_t)TREE_OPERAND(t, 0),
-                IDefineCode::UNDEF, op0ReadOnly, rPluginType0);
-            mlir::Value op1 = builder.create<PlaceholderOp>(
-                builder.getUnknownLoc(), (uint64_t)TREE_OPERAND(t, 1),
-                IDefineCode::UNDEF, op1ReadOnly, rPluginType1);
+            mlir::Value op0 = TreeToValue((uint64_t)operand0);
+            mlir::Value op1 = TreeToValue((uint64_t)operand1);
             opValue = builder.create<MemOp>(
                 builder.getUnknownLoc(), treeId, IDefineCode::MemRef, readOnly,
                 op0, op1, rPluginType);
