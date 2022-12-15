@@ -183,7 +183,10 @@ void PluginClient::FunctionOpJsonSerialize(vector<FunctionOp>& data, string& out
             uint64_t bbAddress = 0;
             size_t opIdx = 0;
             for (auto &inst : b) {
-                if (auto phOp = llvm::dyn_cast<PlaceholderOp>(inst)) continue;
+                if (isa<PlaceholderOp>(inst)) continue;
+                else if (isa<SSAOp>(inst)) continue;
+                else if (isa<MemOp>(inst)) continue;
+                else if (isa<ConstOp>(inst)) continue;
                 string opStr = "Operation" + std::to_string(opIdx++);
                 item["region"][blockStr]["ops"][opStr] = OperationJsonSerialize(&inst, bbAddress);
             }
