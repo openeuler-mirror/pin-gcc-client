@@ -833,7 +833,7 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             uint64_t definingId = reinterpret_cast<uint64_t>(SSA_NAME_DEF_STMT(t));
             uint64_t nameVarId = reinterpret_cast<uint64_t>(SSA_NAME_VAR(t));
             opValue = builder.create<SSAOp>(builder.getUnknownLoc(), treeId,
-                                         IDefineCode::SSA, (uint64_t)TYPE_READONLY(t),
+                                         IDefineCode::SSA, readOnly,
                                          nameVarId, ssaParmDecl, version,
                                          definingId, rPluginType);
             break;
@@ -845,6 +845,12 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
         }
     }
     return opValue;
+}
+
+void GimpleToPluginOps::DebugValue(uint64_t valId)
+{
+    tree t = reinterpret_cast<tree>(valId);
+    debug_tree (t);
 }
 
 mlir::Value GimpleToPluginOps::BuildMemRef(PluginIR::PluginTypeBase type,

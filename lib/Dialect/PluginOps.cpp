@@ -106,7 +106,7 @@ void SSAOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
     state.addAttribute("ssaParmDecl", builder.getI64IntegerAttr(ssaParmDecl));
     state.addAttribute("version", builder.getI64IntegerAttr(version));
     state.addAttribute("definingId", builder.getI64IntegerAttr(definingId));   
-	state.addTypes(retType);
+    state.addTypes(retType);
 }
 
 //===----------------------------------------------------------------------===//

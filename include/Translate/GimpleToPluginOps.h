@@ -87,6 +87,7 @@ public:
     mlir::Value GetGphiResult(uint64_t);
     mlir::Value BuildIntCst(mlir::Type, int64_t);
     mlir::Value TreeToValue(uint64_t);
+    void DebugValue(uint64_t);
     mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t);
     bool UpdateSSA();
     vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t);
