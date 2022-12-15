@@ -259,7 +259,7 @@ void PluginClient::LocalDeclsJsonSerialize(vector<LocalDeclOp>& decls, string& o
         item["attributes"]["symName"] = decl.symNameAttr().getValue().str().c_str();
         item["attributes"]["typeID"] = decl.typeIDAttr().getInt();
         item["attributes"]["typeWidth"] = decl.typeWidthAttr().getInt();
-        operation = "operation" + std::to_string(i++);
+        operation = "localDecl" + std::to_string(i++);
         root[operation] = item;
         item.clear();
     }
@@ -280,7 +280,7 @@ void PluginClient::LoopOpsJsonSerialize(vector<mlir::Plugin::LoopOp>& loops, str
         item["attributes"]["innerLoopId"] = std::to_string(loop.innerLoopIdAttr().getInt());
         item["attributes"]["outerLoopId"] = std::to_string(loop.outerLoopIdAttr().getInt());
         item["attributes"]["numBlock"] = std::to_string(loop.numBlockAttr().getInt());
-        operation = "operation" + std::to_string(i++);
+        operation = "loopOp" + std::to_string(i++);
         root[operation] = item;
         item.clear();
     }
@@ -414,10 +414,9 @@ Json::Value PluginClient::SSAOpJsonSerialize(SSAOp& data)
     item["id"] = std::to_string(data.idAttr().getInt());
     item["defCode"] = std::to_string(data.defCodeAttr().getInt());
     item["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
-    item["ssaName"] = std::to_string(data.SSANameAttr().getInt());
+    item["nameVarId"] = std::to_string(data.nameVarIdAttr().getInt());
     item["ssaParmDecl"] = std::to_string(data.ssaParmDeclAttr().getInt());
     item["version"] = std::to_string(data.versionAttr().getInt());
-    item["defStmtId"] = std::to_string(data.defStmtIdAttr().getInt());
     item["definingId"] = std::to_string(data.definingIdAttr().getInt());
     auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
     item["retType"] = TypeJsonSerialize(retTy);
@@ -471,7 +470,7 @@ Json::Value PluginClient::MemOpJsonSerialize(MemOp& data)
     Json::Value root;
     root["id"] = std::to_string(data.idAttr().getInt());
     root["defCode"] = std::to_string(data.defCodeAttr().getInt());
-	root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
     mlir::Value base = data.GetBase();
     mlir::Value offset = data.GetOffset();
     root["base"] = ValueJsonSerialize(base);
@@ -589,6 +588,22 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         clientAPI.DeleteLoop(loopId);
         NopJsonSerialize(result);
         this->ReceiveSendMsg("VoidResult", result);
+    } else if (funcName == "AddBlockToLoop") {
+        /// Json格式
+        /// {
+        ///     "loopId":"xxxx",
+        ///     "blockId":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string loopIdKey = "loopId";
+        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+        std::string blockIdKey = "blockId";
+        uint64_t blockId = atol(root[blockIdKey].asString().c_str());
+        clientAPI.AddBlockToLoop(blockId, loopId);
+        NopJsonSerialize(result);
+        this->ReceiveSendMsg("VoidResult", result);
     } else if (funcName == "AddLoop") {
         /// Json格式
         /// {
@@ -646,6 +661,38 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         uint64_t loopId = atol(root[loopIdKey].asString().c_str());
         uint64_t blockId = clientAPI.GetLatch(loopId);
         this->ReceiveSendMsg("IdResult", std::to_string(blockId));
+    } else if (funcName == "SetHeader") {
+        /// Json格式
+        /// {
+        ///     "loopId":"xxxx",
+        ///     "blockId":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string loopIdKey = "loopId";
+        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+        std::string blockIdKey = "blockId";
+        uint64_t blockId = atol(root[blockIdKey].asString().c_str());
+        clientAPI.SetHeader(loopId, blockId);
+        NopJsonSerialize(result);
+        this->ReceiveSendMsg("VoidResult", result);
+    } else if (funcName == "SetLatch") {
+        /// Json格式
+        /// {
+        ///     "loopId":"xxxx",
+        ///     "blockId":"xxxx",
+        /// }
+        mlir::MLIRContext context;
+        context.getOrLoadDialect<PluginDialect>();
+        PluginAPI::PluginClientAPI clientAPI(context);
+        std::string loopIdKey = "loopId";
+        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+        std::string blockIdKey = "blockId";
+        uint64_t blockId = atol(root[blockIdKey].asString().c_str());
+        clientAPI.SetLatch(loopId, blockId);
+        NopJsonSerialize(result);
+        this->ReceiveSendMsg("VoidResult", result);
     } else if (funcName == "GetLoopExits") {
         /// Json格式
         /// {

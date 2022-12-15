@@ -397,6 +397,13 @@ void GimpleToPluginOps::DeleteLoop(uint64_t loopID)
     delete_loop(loop);
 }
 
+void GimpleToPluginOps::AddBlockToLoop(uint64_t blockID, uint64_t loopID)
+{
+    basic_block bb = reinterpret_cast<basic_block>(reinterpret_cast<void *>(blockID));
+    class loop *loop = reinterpret_cast<class loop *>(reinterpret_cast<void *>(loopID));
+    add_bb_to_loop(bb, loop);
+}
+
 void GimpleToPluginOps::AddLoop(uint64_t loopID, uint64_t outerID, uint64_t funcID)
 {
     class loop *loop = reinterpret_cast<class loop *>(loopID);
@@ -419,6 +426,20 @@ uint64_t GimpleToPluginOps::GetLatch(uint64_t loopID)
     class loop *loop = reinterpret_cast<class loop *>(loopID);
     basic_block latch = loop->latch;
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(latch));
+}
+
+void GimpleToPluginOps::SetHeader(uint64_t loopID, uint64_t blockID)
+{
+    class loop *loop = reinterpret_cast<class loop *>(reinterpret_cast<void *>(loopID));
+    basic_block bb = reinterpret_cast<basic_block>(reinterpret_cast<void *>(blockID));
+    loop->header = bb;
+}
+
+void GimpleToPluginOps::SetLatch(uint64_t loopID, uint64_t blockID)
+{
+    class loop *loop = reinterpret_cast<class loop *>(reinterpret_cast<void *>(loopID));
+    basic_block bb = reinterpret_cast<basic_block>(reinterpret_cast<void *>(blockID));
+    loop->latch = bb;
 }
 
 vector<std::pair<uint64_t, uint64_t> > GimpleToPluginOps::GetLoopExits(uint64_t loopID)
@@ -821,13 +842,12 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
                 ssaParmDecl = (TREE_CODE (SSA_NAME_VAR (t)) == PARM_DECL) ? 1 : 0;
             }
             uint64_t version = SSA_NAME_VERSION(t);
-            uint64_t defStmtId = reinterpret_cast<uint64_t>(SSA_NAME_DEF_STMT(t));
-            uint64_t defOpId = reinterpret_cast<uint64_t>(SSA_NAME_VAR(t));
-            uint64_t nameSR = reinterpret_cast<uint64_t>(SSA_NAME_VAR(t));
+            uint64_t definingId = reinterpret_cast<uint64_t>(SSA_NAME_DEF_STMT(t));
+            uint64_t nameVarId = reinterpret_cast<uint64_t>(SSA_NAME_VAR(t));
             opValue = builder.create<SSAOp>(builder.getUnknownLoc(), treeId,
                                          IDefineCode::SSA, (uint64_t)TYPE_READONLY(t),
-                                         nameSR, ssaParmDecl, version,
-                                         defStmtId, defOpId, rPluginType);
+                                         nameVarId, ssaParmDecl, version,
+                                         definingId, rPluginType);
             break;
         }
         default: {

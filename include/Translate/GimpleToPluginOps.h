@@ -63,8 +63,11 @@ public:
     uint64_t AllocateNewLoop(void);
     void DeleteLoop(uint64_t);
     void AddLoop (uint64_t, uint64_t, uint64_t);
+    void AddBlockToLoop(uint64_t, uint64_t);
     uint64_t GetHeader(uint64_t);
     uint64_t GetLatch(uint64_t);
+    void SetHeader(uint64_t, uint64_t);
+    void SetLatch(uint64_t, uint64_t);
     vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t);
     std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t);
     LoopOp GetBlockLoopFather(uint64_t);
@@ -84,7 +87,7 @@ public:
     mlir::Value GetGphiResult(uint64_t);
     mlir::Value BuildIntCst(mlir::Type, int64_t);
     mlir::Value TreeToValue(uint64_t);
-	mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t);
+    mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t);
     bool UpdateSSA();
     vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t);
     bool IsDomInfoAvailable();

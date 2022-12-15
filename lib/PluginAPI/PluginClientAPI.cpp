@@ -89,6 +89,11 @@ void PluginClientAPI::DeleteLoop(uint64_t loopId)
     gimpleConversion.DeleteLoop(loopId);
 }
 
+void PluginClientAPI::AddBlockToLoop(uint64_t blockId, uint64_t loopId)
+{
+    gimpleConversion.AddBlockToLoop(blockId, loopId);
+}
+
 uint64_t PluginClientAPI::GetHeader(uint64_t loopId)
 {
     return gimpleConversion.GetHeader(loopId);
@@ -97,6 +102,16 @@ uint64_t PluginClientAPI::GetHeader(uint64_t loopId)
 uint64_t PluginClientAPI::GetLatch(uint64_t loopId)
 {
     return gimpleConversion.GetLatch(loopId);
+}
+
+void PluginClientAPI::SetHeader(uint64_t loopId, uint64_t blockId)
+{
+    gimpleConversion.SetHeader(loopId, blockId);
+}
+
+void PluginClientAPI::SetLatch(uint64_t loopId, uint64_t blockId)
+{
+    gimpleConversion.SetLatch(loopId, blockId);
 }
 
 vector<std::pair<uint64_t, uint64_t> > PluginClientAPI::GetLoopExits(uint64_t loopId)

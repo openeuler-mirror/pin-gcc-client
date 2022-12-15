@@ -48,8 +48,11 @@ public:
     void AddLoop(uint64_t, uint64_t, uint64_t) override;
     uint64_t AllocateNewLoop(void) override;
     void DeleteLoop(uint64_t) override;
+    void AddBlockToLoop(uint64_t, uint64_t) override;
     uint64_t GetHeader(uint64_t) override;
     uint64_t GetLatch(uint64_t) override;
+    void SetHeader(uint64_t, uint64_t) override;
+    void SetLatch(uint64_t, uint64_t) override;
     vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t) override;
     std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t) override;
     LoopOp GetBlockLoopFather(uint64_t) override;
@@ -72,8 +75,8 @@ public:
     bool UpdateSSA() override;
     vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) override;
     bool IsDomInfoAvailable() override;
-	mlir::Value GetValue(uint64_t) override;
-	mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t) override;
+    mlir::Value GetValue(uint64_t) override;
+    mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t) override;
 
     mlir::Value GetCurrentDefFromSSA(uint64_t) override;
     bool SetCurrentDefInSSA(uint64_t, uint64_t) override;
