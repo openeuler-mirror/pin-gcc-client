@@ -370,13 +370,14 @@ Json::Value PluginClient::CallOpJsonSerialize(CallOp& data)
     Json::Value item;
     item["id"] = std::to_string(data.idAttr().getInt());
     item["callee"] = data.callee().str();
+    item["OperationName"] = data.getOperation()->getName().getStringRef().str();
     size_t opIdx = 0;
     for (mlir::Value v : data.getArgOperands()) {
         string input = "input" + std::to_string(opIdx++);
         item["operands"][input] = ValueJsonSerialize(v);
     }
-    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
-    item["retType"] = TypeJsonSerialize(retTy);
+    // auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    // item["retType"] = TypeJsonSerialize(retTy);
     return item;
 }
 
@@ -400,13 +401,14 @@ Json::Value PluginClient::PhiOpJsonSerialize(PhiOp& data)
     item["id"] = std::to_string(data.idAttr().getInt());
     item["capacity"] = std::to_string(data.capacityAttr().getInt());
     item["nArgs"] = std::to_string(data.nArgsAttr().getInt());
+    item["OperationName"] = data.getOperation()->getName().getStringRef().str();
     size_t opIdx = 0;
     for (mlir::Value v : data.operands()) {
         string input = "input" + std::to_string(opIdx++);
         item["operands"][input] = ValueJsonSerialize(v);
     }
-    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
-    item["retType"] = TypeJsonSerialize(retTy);
+    // auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    // item["retType"] = TypeJsonSerialize(retTy);
     return item;
 }
 
@@ -430,13 +432,14 @@ Json::Value PluginClient::AssignOpJsonSerialize(AssignOp& data)
     Json::Value item;
     item["id"] = std::to_string(data.idAttr().getInt());
     item["exprCode"] = std::to_string(data.exprCodeAttr().getInt());
+    item["OperationName"] = data.getOperation()->getName().getStringRef().str();
     size_t opIdx = 0;
     for (mlir::Value v : data.operands()) {
         string input = "input" + std::to_string(opIdx++);
         item["operands"][input] = ValueJsonSerialize(v);
     }
-    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
-    item["retType"] = TypeJsonSerialize(retTy);
+    // auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    // item["retType"] = TypeJsonSerialize(retTy);
     return item;
 }
 
@@ -754,9 +757,11 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();
         PluginAPI::PluginClientAPI clientAPI(context);
+        std::string funcKey = "funcaddr";
         std::string BlockIdKey = "bbaddr";
-        uint64_t addr = atol(root[BlockIdKey].asString().c_str());
-        clientAPI.DeleteLoop(addr);
+        uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
+        uint64_t funcaddr = atol(root[funcKey].asString().c_str());
+        clientAPI.DeleteBlock(funcaddr, bbaddr);
         NopJsonSerialize(result);
         this->ReceiveSendMsg("VoidResult", result);
     } else if (funcName == "SetImmediateDominator") {
@@ -840,8 +845,8 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
         uint64_t argId = atol(root["argId"].asString().c_str());
         uint64_t predId = atol(root["predId"].asString().c_str());
         uint64_t succId = atol(root["succId"].asString().c_str());
-        bool ret = clientAPI.AddArgInPhiOp(phiId, argId, predId, succId);
-        this->ReceiveSendMsg("BoolResult", std::to_string(ret));
+        uint32_t ret = clientAPI.AddArgInPhiOp(phiId, argId, predId, succId);
+        this->ReceiveSendMsg("IdResult", std::to_string(ret));
     } else if (funcName == "CreateCallOp") {
         mlir::MLIRContext context;
         context.getOrLoadDialect<PluginDialect>();
