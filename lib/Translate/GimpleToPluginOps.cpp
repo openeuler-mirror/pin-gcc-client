@@ -245,6 +245,7 @@ void GimpleToPluginOps::SetImmediateDominator(uint64_t dir, uint64_t bbAddr,
     basic_block bb = reinterpret_cast<basic_block>(bbAddr);
     basic_block dominated = reinterpret_cast<basic_block>(domiAddr);
     if (dir == 1) {
+        static int index = 0;
         set_immediate_dominator(CDI_DOMINATORS, bb, dominated);
     } else if (dir == 2) {
         set_immediate_dominator(CDI_POST_DOMINATORS, bb, dominated);
@@ -563,13 +564,18 @@ PhiOp GimpleToPluginOps::BuildPhiOp(uint64_t gphiId)
     ops.reserve(gimple_phi_num_args(stmt));
     for (unsigned i = 0; i < gimple_phi_num_args(stmt); i++) {
         tree argTree = gimple_phi_arg_def(stmt, i);
+        if (argTree == NULL_TREE) continue;
         uint64_t argId = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(argTree));
         Value arg = TreeToValue(argId);
         ops.push_back(arg);
     }
-    tree returnType = TREE_TYPE(gimple_phi_result(stmt));
-    PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
+    PluginTypeBase rPluginType = nullptr;
+    tree retTree = gimple_phi_result(stmt);
+    if (retTree != NULL_TREE) {
+        tree returnType = TREE_TYPE(retTree);
+        rPluginType = typeTranslator.translateType((intptr_t)returnType);
+    }
     uint32_t capacity = gimple_phi_capacity(stmt);
     uint32_t nArgs = gimple_phi_num_args(stmt);
     PhiOp ret = builder.create<PhiOp>(builder.getUnknownLoc(),
@@ -615,7 +621,7 @@ CallOp GimpleToPluginOps::BuildCallOp(uint64_t gcallId)
 bool GimpleToPluginOps::SetGimpleCallLHS(uint64_t callId, uint64_t lhsId)
 {
     gcall *stmt = reinterpret_cast<gcall*>(callId);
-    tree lhs = reinterpret_cast<tree>(callId);
+    tree lhs = reinterpret_cast<tree>(lhsId);
     gimple_call_set_lhs (stmt, lhs);
     return true;
 }
@@ -645,7 +651,7 @@ uint64_t GimpleToPluginOps::CreateGcallVec(uint64_t blockId, uint64_t funcId,
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
 }
 
-bool GimpleToPluginOps::AddPhiArg(uint64_t phiId, uint64_t argId,
+uint32_t GimpleToPluginOps::AddPhiArg(uint64_t phiId, uint64_t argId,
                                   uint64_t predId, uint64_t succId)
 {
     gphi *phi = reinterpret_cast<gphi*>(phiId);
@@ -659,13 +665,13 @@ bool GimpleToPluginOps::AddPhiArg(uint64_t phiId, uint64_t argId,
     else
     loc = gimple_location (SSA_NAME_DEF_STMT (arg));
     add_phi_arg (phi, arg, e, loc);
-    return true;
+    return gimple_phi_num_args(phi);
 }
 
 uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
                                           vector<uint64_t> &argIds)
 {
-    vector<tree> vargs (argIds.size());
+    vector<tree> vargs;
     for (auto id : argIds) {
         tree arg = reinterpret_cast<tree>(id);
         vargs.push_back (arg);
@@ -686,7 +692,7 @@ uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
         ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode),
                                   vargs[1], vargs[2], vargs[3]);
     } else {
-        printf("ERROR.\n");
+        printf("ERROR size:%d.\n", vargs.size());
     }
     basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
@@ -850,7 +856,7 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
 void GimpleToPluginOps::DebugValue(uint64_t valId)
 {
     tree t = reinterpret_cast<tree>(valId);
-    debug_tree (t);
+    // debug_tree (t);
 }
 
 mlir::Value GimpleToPluginOps::BuildMemRef(PluginIR::PluginTypeBase type,
@@ -909,7 +915,6 @@ bool GimpleToPluginOps::ProcessBasicBlock(intptr_t bbPtr, Region& rg)
     if (bbTranslator->blockMaps.find(bb) != bbTranslator->blockMaps.end()) {
         return true;
     }
-    // fprintf(stderr,"processing bb[%d]\n", bb->index);
 
     // create basic block
     Block* block = builder.createBlock(&rg, rg.begin());
@@ -919,7 +924,6 @@ bool GimpleToPluginOps::ProcessBasicBlock(intptr_t bbPtr, Region& rg)
 
     // process succ
     for (unsigned int i = 0; i < EDGE_COUNT (bb->succs); i++) {
-        // fprintf(stderr,"-->[%d]\n", EDGE_SUCC(bb, i)->dest->index);
         if (!ProcessBasicBlock((intptr_t)(EDGE_SUCC(bb, i)->dest), rg)) {
             return false;
         }
@@ -929,8 +933,6 @@ bool GimpleToPluginOps::ProcessBasicBlock(intptr_t bbPtr, Region& rg)
     if (!ProcessGimpleStmt(bbPtr, rg)) {
         return false;
     }
-    // block->dump();
-    // fprintf(stderr, "[bb%d] succ: %d\n", bb->index,block->getNumSuccessors());
     return true;
 }
 
@@ -944,7 +946,6 @@ vector<PhiOp> GimpleToPluginOps::GetPhiOpsInsideBlock(uint64_t bb)
 {
     basic_block header = reinterpret_cast<basic_block>(bb);
     vector<PhiOp> phiOps;
-
     gphi_iterator gsi;
     for (gsi = gsi_start_phis(header); !gsi_end_p(gsi); gsi_next(&gsi)) {
         gphi *phi = gsi.phi();
@@ -965,8 +966,14 @@ Value GimpleToPluginOps::CreateNewDefFor(uint64_t oldId, uint64_t opId, uint64_t
 {
     tree old_name = reinterpret_cast<tree>(oldId);
     gimple *stmt = reinterpret_cast<gimple*>(opId);
-    tree defTree = reinterpret_cast<tree>(defId);
-    tree ret = create_new_def_for(old_name, stmt, &defTree);
+    tree ret;
+    if (defId == 0) {
+        gimple *stmt = reinterpret_cast<gimple*>(opId);
+        ret = create_new_def_for(old_name, stmt, gimple_phi_result_ptr (stmt));
+    } else {
+        tree defTree = reinterpret_cast<tree>(defId);
+        ret = create_new_def_for(old_name, stmt, &defTree);
+    }
     uint64_t retId = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(ret));
     return TreeToValue(retId);

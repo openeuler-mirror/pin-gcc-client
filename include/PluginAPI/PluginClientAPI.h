@@ -68,7 +68,7 @@ public:
     /* Plugin API for AssignOp. */
     uint64_t CreateAssignOp(uint64_t, IExprCode, vector<uint64_t> &) override;
     /* Plugin API for PhiOp. */
-    bool AddArgInPhiOp(uint64_t, uint64_t, uint64_t, uint64_t) override;
+    uint32_t AddArgInPhiOp(uint64_t, uint64_t, uint64_t, uint64_t) override;
     PhiOp CreatePhiOp(uint64_t, uint64_t) override;
     /* Plugin API for ConstOp. */
     mlir::Value CreateConstOp(mlir::Attribute, mlir::Type) override;

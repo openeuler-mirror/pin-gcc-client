@@ -142,7 +142,7 @@ bool PluginClientAPI::SetLhsInCallOp(uint64_t callId, uint64_t lhsId)
     return gimpleConversion.SetGimpleCallLHS(callId, lhsId);
 }
 
-bool PluginClientAPI::AddArgInPhiOp(uint64_t phiId, uint64_t argId,
+uint32_t PluginClientAPI::AddArgInPhiOp(uint64_t phiId, uint64_t argId,
                                     uint64_t predId, uint64_t succId)
 {
     return gimpleConversion.AddPhiArg(phiId, argId, predId, succId);

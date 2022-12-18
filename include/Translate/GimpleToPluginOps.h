@@ -73,7 +73,7 @@ public:
     LoopOp GetBlockLoopFather(uint64_t);
     CallOp BuildCallOp(uint64_t);
     bool SetGimpleCallLHS(uint64_t, uint64_t);
-    bool AddPhiArg(uint64_t, uint64_t, uint64_t, uint64_t);
+    uint32_t AddPhiArg(uint64_t, uint64_t, uint64_t, uint64_t);
     uint64_t CreateGcallVec(uint64_t, uint64_t, vector<uint64_t> &);
     uint64_t CreateGassign(uint64_t, IExprCode, vector<uint64_t> &);
     CondOp BuildCondOp(uint64_t, uint64_t, Block*, Block*, uint64_t, uint64_t);
