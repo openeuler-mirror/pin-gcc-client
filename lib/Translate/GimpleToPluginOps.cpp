@@ -245,7 +245,6 @@ void GimpleToPluginOps::SetImmediateDominator(uint64_t dir, uint64_t bbAddr,
     basic_block bb = reinterpret_cast<basic_block>(bbAddr);
     basic_block dominated = reinterpret_cast<basic_block>(domiAddr);
     if (dir == 1) {
-        static int index = 0;
         set_immediate_dominator(CDI_DOMINATORS, bb, dominated);
     } else if (dir == 2) {
         set_immediate_dominator(CDI_POST_DOMINATORS, bb, dominated);
@@ -509,6 +508,7 @@ FunctionOp GimpleToPluginOps::BuildFunctionOp(uint64_t functionId)
     FunctionOp retOp = builder.create<FunctionOp>(location, functionId,
                                         funcName, declaredInline);
     auto& fr = retOp.bodyRegion();
+    if (fn->cfg == nullptr) return retOp;
     if (!ProcessBasicBlock((intptr_t)ENTRY_BLOCK_PTR_FOR_FN(fn), fr)) {
         // handle error
         return retOp;
@@ -692,7 +692,7 @@ uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
         ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode),
                                   vargs[1], vargs[2], vargs[3]);
     } else {
-        printf("ERROR size:%d.\n", vargs.size());
+        printf("ERROR size: %ld.\n", vargs.size());
     }
     basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
