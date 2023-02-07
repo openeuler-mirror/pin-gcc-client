@@ -36,10 +36,10 @@ namespace PluginIR {
 using std::vector;
 using namespace mlir;
 
-namespace detail {
+namespace Detail {
     class TypeFromPluginIRTranslatorImpl;
     class TypeToPluginIRTranslatorImpl;
-} // namespace detail
+} // namespace Detail
 
 class TypeFromPluginIRTranslator {
 public:
@@ -54,7 +54,7 @@ public:
     uint64_t getBitWidth (PluginTypeBase type);
 
 private:
-    std::unique_ptr<detail::TypeFromPluginIRTranslatorImpl> impl;
+    std::unique_ptr<Detail::TypeFromPluginIRTranslatorImpl> impl;
 };
 
 class TypeToPluginIRTranslator {
@@ -65,7 +65,7 @@ public:
     uintptr_t translateType (PluginTypeBase type);
 
 private:
-    std::unique_ptr<detail::TypeToPluginIRTranslatorImpl> impl;
+    std::unique_ptr<Detail::TypeToPluginIRTranslatorImpl> impl;
 };
 
 } // namespace PluginIR

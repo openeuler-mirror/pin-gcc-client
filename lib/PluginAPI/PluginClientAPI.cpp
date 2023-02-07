@@ -19,6 +19,32 @@
 #include "PluginAPI/PluginClientAPI.h"
 
 namespace PluginAPI {
+
+string PluginClientAPI::GetDeclSourceFile(uint64_t gccDataAddr)
+{
+    return gimpleConversion.DeclSourceFile(gccDataAddr);
+}
+
+string PluginClientAPI::VariableName(int64_t gccDataAddr)
+{
+    return gimpleConversion.GetVariableName(gccDataAddr);
+}
+
+string PluginClientAPI::FuncName(int64_t gccDataAddr)
+{
+    return gimpleConversion.GetFuncName(gccDataAddr);
+}
+
+int PluginClientAPI::GetDeclSourceLine(uint64_t gccDataAddr)
+{
+    return gimpleConversion.DeclSourceLine(gccDataAddr);
+}
+
+int PluginClientAPI::GetDeclSourceColumn(uint64_t gccDataAddr)
+{
+    return gimpleConversion.DeclSourceColumn(gccDataAddr);
+}
+
 uint64_t PluginClientAPI::CreateBlock(uint64_t funcAddr, uint64_t bbAddr)
 {
     return gimpleConversion.CreateBlock(funcAddr, bbAddr);
@@ -142,20 +168,17 @@ bool PluginClientAPI::SetLhsInCallOp(uint64_t callId, uint64_t lhsId)
     return gimpleConversion.SetGimpleCallLHS(callId, lhsId);
 }
 
-uint32_t PluginClientAPI::AddArgInPhiOp(uint64_t phiId, uint64_t argId,
-                                    uint64_t predId, uint64_t succId)
+uint32_t PluginClientAPI::AddArgInPhiOp(uint64_t phiId, uint64_t argId, uint64_t predId, uint64_t succId)
 {
     return gimpleConversion.AddPhiArg(phiId, argId, predId, succId);
 }
 
-uint64_t PluginClientAPI::CreateCallOp(uint64_t blockId, uint64_t funcId,
-                                       vector<uint64_t> &argIds)
+uint64_t PluginClientAPI::CreateCallOp(uint64_t blockId, uint64_t funcId, vector<uint64_t> &argIds)
 {
     return gimpleConversion.CreateGcallVec(blockId, funcId, argIds);
 }
 
-uint64_t PluginClientAPI::CreateAssignOp(uint64_t blockId, IExprCode iCode,
-                                         vector<uint64_t> &argIds)
+uint64_t PluginClientAPI::CreateAssignOp(uint64_t blockId, IExprCode iCode, vector<uint64_t> &argIds)
 {
     return gimpleConversion.CreateGassign(blockId, iCode, argIds);
 }
@@ -170,8 +193,7 @@ mlir::Value PluginClientAPI::CreateConstOp(mlir::Attribute attr, mlir::Type type
 }
 
 uint64_t PluginClientAPI::CreateCondOp(uint64_t blockId, IComparisonCode iCode,
-                                       uint64_t LHS, uint64_t RHS,
-                                       uint64_t tbaddr, uint64_t fbaddr)
+    uint64_t LHS, uint64_t RHS, uint64_t tbaddr, uint64_t fbaddr)
 {
     return gimpleConversion.CreateGcond(blockId, iCode, LHS, RHS, tbaddr, fbaddr);
 }

@@ -36,18 +36,24 @@
 
 namespace PluginIR {
 using std::vector;
+using std::string;
 using namespace mlir::Plugin;
 
-namespace detail {
+namespace Detail {
     class BlockFromGimpleTranslatorImpl;
     // class BlockToPluginIRTranslatorImpl;
-} // namespace detail
+} // namespace Detail
 
 class GimpleToPluginOps {
 public:
     GimpleToPluginOps (mlir::MLIRContext &);
     ~GimpleToPluginOps ();
 
+    string DeclSourceFile(uint64_t gccDataAddr);
+    string GetVariableName(uint64_t gccDataAddr);
+    string GetFuncName(uint64_t gccDataAddr);
+    int DeclSourceLine(uint64_t gccDataAddr);
+    int DeclSourceColumn(uint64_t gccDataAddr);
     /* ToPluginInterface */
     uint64_t CreateBlock(uint64_t, uint64_t);
     void DeleteBlock(uint64_t, uint64_t);
@@ -107,7 +113,7 @@ private:
     TypeToPluginIRTranslator pluginTypeTranslator;
 
     // process basic_block
-    std::unique_ptr<detail::BlockFromGimpleTranslatorImpl> bbTranslator;
+    std::unique_ptr<Detail::BlockFromGimpleTranslatorImpl> bbTranslator;
     bool ProcessBasicBlock(intptr_t, Region&);
     bool ProcessGimpleStmt(intptr_t, Region&);
 };

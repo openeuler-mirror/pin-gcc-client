@@ -16,11 +16,11 @@
 
 
 */
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 //
 // This file defines Plugin dialect.
 //
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
 #include "Dialect/PluginDialect.h"
 #include "Dialect/PluginOps.h"
@@ -29,20 +29,21 @@
 using namespace mlir;
 using namespace mlir::Plugin;
 
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 // Plugin dialect.
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
-void PluginDialect::initialize() {
-  addTypes<PluginIR::PluginIntegerType,
-           PluginIR::PluginFloatType,
-           PluginIR::PluginPointerType,
-           PluginIR::PluginBooleanType,
-           PluginIR::PluginVoidType,
-           PluginIR::PluginUndefType>();
+void PluginDialect::initialize()
+{
+    addTypes<PluginIR::PluginIntegerType,
+        PluginIR::PluginFloatType,
+        PluginIR::PluginPointerType,
+        PluginIR::PluginBooleanType,
+        PluginIR::PluginVoidType,
+        PluginIR::PluginUndefType>();
 
-  addOperations<
+    addOperations<
 #define GET_OP_LIST
 #include "Dialect/PluginOps.cpp.inc"
-      >();
+    >();
 }

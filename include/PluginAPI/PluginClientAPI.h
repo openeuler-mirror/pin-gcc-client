@@ -33,6 +33,12 @@ public:
     PluginClientAPI () = default;
     ~PluginClientAPI () = default;
 
+    string GetDeclSourceFile(uint64_t gccDataAddr) override;
+    string VariableName(int64_t gccDataAddr) override;
+    string FuncName(int64_t gccDataAddr) override;
+    int GetDeclSourceLine(uint64_t gccDataAddr) override;
+    int GetDeclSourceColumn(uint64_t gccDataAddr) override;
+
     uint64_t CreateBlock(uint64_t, uint64_t) override;
     void DeleteBlock(uint64_t, uint64_t) override;
     void SetImmediateDominator(uint64_t, uint64_t, uint64_t) override;

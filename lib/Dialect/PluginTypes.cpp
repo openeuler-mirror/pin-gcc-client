@@ -28,7 +28,7 @@ using namespace mlir;
 using namespace PluginIR;
 
 namespace PluginIR {
-namespace detail {
+namespace Detail {
     /// Integer Type Storage and Uniquing.
     struct PluginIntegerTypeStorage : public TypeStorage {
         PluginIntegerTypeStorage(unsigned width,
@@ -38,16 +38,18 @@ namespace detail {
         /// The hash key used for uniquing.
         using KeyTy = std::pair<unsigned, PluginIntegerType::SignednessSemantics>;
 
-        static llvm::hash_code hashKey(const KeyTy &key) {
+        static llvm::hash_code hashKey(const KeyTy &key)
+        {
             return llvm::hash_value(key);
         }
 
-        bool operator==(const KeyTy &key) const {
+        bool operator==(const KeyTy &key) const
+        {
             return KeyTy(width, signedness) == key;
         }
 
-        static PluginIntegerTypeStorage *construct(TypeStorageAllocator &allocator,
-                                            KeyTy key) {
+        static PluginIntegerTypeStorage *construct(TypeStorageAllocator &allocator, KeyTy key)
+        {
             return new (allocator.allocate<PluginIntegerTypeStorage>())
                 PluginIntegerTypeStorage(key.first, key.second);
         }
@@ -62,12 +64,13 @@ namespace detail {
         /// The hash key used for uniquing.
         using KeyTy = unsigned;
 
-        bool operator==(const KeyTy &key) const {
+        bool operator==(const KeyTy &key) const
+        {
             return KeyTy(width) == key;
         }
 
-        static PluginFloatTypeStorage *construct(TypeStorageAllocator &allocator,
-                                            KeyTy key) {
+        static PluginFloatTypeStorage *construct(TypeStorageAllocator &allocator, KeyTy key)
+        {
             return new (allocator.allocate<PluginFloatTypeStorage>())
                 PluginFloatTypeStorage(key);
         }
@@ -81,26 +84,27 @@ namespace detail {
         PluginPointerTypeStorage(const KeyTy &key)
             : pointee(std::get<0>(key)), readOnlyPointee(std::get<1>(key)) {}
 
-        static PluginPointerTypeStorage *construct(TypeStorageAllocator &allocator,
-                                            KeyTy key) {
+        static PluginPointerTypeStorage *construct(TypeStorageAllocator &allocator, KeyTy key)
+        {
             return new (allocator.allocate<PluginPointerTypeStorage>())
                 PluginPointerTypeStorage(key);
         }
 
-        bool operator==(const KeyTy &key) const {
+        bool operator==(const KeyTy &key) const
+        {
             return std::make_tuple(pointee, readOnlyPointee) == key;
         }
 
         Type pointee;
         unsigned readOnlyPointee;
     };
-} // namespace detail
+} // namespace Detail
 } // namespace PluginIR
 
 
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 // Plugin TypeBase
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
 PluginTypeID PluginTypeBase::getPluginTypeID ()
 {
@@ -119,7 +123,7 @@ PluginTypeID PluginTypeBase::getPluginTypeID ()
     if (auto Ty = dyn_cast<PluginIR::PluginPointerType>()) {
         return Ty.getPluginTypeID ();
     }
-    return PluginTypeID::UndefTyID;    
+    return PluginTypeID::UndefTyID;
 }
 
 unsigned PluginTypeBase::getPluginIntOrFloatBitWidth ()
@@ -159,9 +163,9 @@ unsigned PluginTypeBase::getTypeSize ()
     return size;
 }
 
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 // Plugin Integer Type
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
 unsigned PluginIntegerType::getWidth() const
 {
@@ -175,10 +179,8 @@ PluginIntegerType::SignednessSemantics PluginIntegerType::getSignedness() const
 
 PluginTypeID PluginIntegerType::getPluginTypeID()
 {
-    if (isSigned())
-    {
-        switch (getWidth())
-        {
+    if (isSigned()) {
+        switch (getWidth()) {
             case 1:
                 return PluginTypeID::IntegerTy1ID;
             case 8:
@@ -193,10 +195,8 @@ PluginTypeID PluginIntegerType::getPluginTypeID()
                 return PluginTypeID::UndefTyID;
         }
     }
-    if (isUnsigned())
-    {
-        switch (getWidth())
-        {
+    if (isUnsigned()) {
+        switch (getWidth()) {
             case 1:
                 return PluginTypeID::UIntegerTy1ID;
             case 8:
@@ -214,14 +214,15 @@ PluginTypeID PluginIntegerType::getPluginTypeID()
     return PluginTypeID::UndefTyID;
 }
 
-PluginIntegerType PluginIntegerType::get (MLIRContext *context, unsigned width, PluginIntegerType::SignednessSemantics signedness)
+PluginIntegerType PluginIntegerType::get (MLIRContext *context, unsigned width,
+    PluginIntegerType::SignednessSemantics signedness)
 {
     return Base::get(context, width, signedness);
 }
 
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 // Plugin Float Type
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
 unsigned PluginFloatType::getWidth () const
 {
@@ -230,10 +231,12 @@ unsigned PluginFloatType::getWidth () const
 
 PluginTypeID PluginFloatType::getPluginTypeID()
 {
-    if (getWidth() == 32)
+    if (getWidth() == 32) {
         return PluginTypeID::FloatTyID;
-    if (getWidth() == 64)
+    }
+    if (getWidth() == 64) {
         return PluginTypeID::DoubleTyID;
+    }
     return PluginTypeID::UndefTyID;
 }
 
@@ -242,36 +245,36 @@ PluginFloatType PluginFloatType::get (MLIRContext *context, unsigned width)
     return Base::get(context, width);
 }
 
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 // Plugin Boolean Type
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
 PluginTypeID PluginBooleanType::getPluginTypeID()
 {
     return PluginTypeID::BooleanTyID;
 }
 
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 // Plugin Void Type
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
 PluginTypeID PluginVoidType::getPluginTypeID()
 {
     return PluginTypeID::VoidTyID;
 }
 
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 // Plugin Undef Type
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
 PluginTypeID PluginUndefType::getPluginTypeID()
 {
     return PluginTypeID::UndefTyID;
 }
 
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 // Plugin Pointer Type
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
 PluginTypeID PluginPointerType::getPluginTypeID()
 {

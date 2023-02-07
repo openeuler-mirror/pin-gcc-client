@@ -1,0 +1,5 @@
+/* Definition of JsonKey */
+
+JSON_KEY(PATH, "path")
+JSON_KEY(SHA256, "sha256file")
+JSON_KEY(TIMEOUT, "timeout")

@@ -17,78 +17,81 @@
    Author: Mingchuan Wu and Yancheng Li
    Create: 2022-08-18
    Description:
-    This file contains the declaration of the PluginAPI class.
+    This file contains the functions of gcc plugin callback and init.
+    主要完成功能：实现RegisterPluginEvent和RegisterPassManagerSetup功能，完成gcc
+    版本号检查，当触发注册点对应事件时，回调server注册的用户函数
+    plugin_init为整个程序入口函数
 */
 
-#include <map>
-#include <set>
-#include <vector>
 #include <string>
-#include <json/json.h>
 #include "PluginClient/PluginClient.h"
 #include "plugin-version.h"
-#include "IRTrans/IRTransPlugin.h"
-#include "context.h"
 #include "tree-pass.h"
 #include "tree.h"
-#include "tree-cfg.h"
+#include "context.h"
+#include "gccPlugin/gccPlugin.h"
 
 using namespace PinClient;
 
-using std::vector;
 int plugin_is_GPL_compatible;
 static pid_t g_serverPid;
 
-/* gcc插件end事件回调函数 */
-static void GccEnd(void *gccData, void *userData)
+/* gcc插件end事件回调函数,停止插件服务端，等待子进程结束，删除端口号 */
+void GccEnd(void *gccData, void *userData)
 {
     int status = 0;
-    std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
-    if (client == nullptr) {
+    PluginClient *client = PluginClient::GetInstance();
+    if (!client->GetStartFlag()) {
         return;
     }
+
     LOGI("gcc optimize has been done! now close server...\n");
     client->ReceiveSendMsg("stop", "");
     if (client->GetUserFuncState() != STATE_TIMEOUT) {
         waitpid(g_serverPid, &status, 0);
     } else {
-        client->DeletePortFromLockFile(client->GetGrpcPort());
+        client->DeleteGrpcPort();
     }
-
     LOGI("client pid:%d quit\n", getpid());
 }
 
-/* gcc插件回调函数,当注册的plugin_event触发时,进入此函数 */
-static void GccEventCallback(void *gccData, void *userData)
+static void WaitIRTrans(void *gccData, PluginClient *client)
 {
-    std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
+    while (1) {
+        UserFuncStateEnum state = client->GetUserFuncState();
+        /* server获取到client对应函数的执行结果后,向client回复已执行完,跳出循环执行下一个函数 */
+        if (state == STATE_END) {
+            client->SetUserFuncState(STATE_WAIT_BEGIN);
+            break;
+        } else if (state == STATE_TIMEOUT) {
+            break;
+        } else if (state == STATE_BEGIN) {
+            string funcName = client->GetPluginAPIName();
+            string param = client->GetPluginAPIParam();
+            if (funcName != "") {
+                client->SetUserFuncState(STATE_WAIT_IR);
+                client->GetIRTransResult(gccData, funcName, param);
+            }
+        }
+    }
+}
+
+/* gcc插件回调函数,当注册的plugin_event触发时,进入此函数 */
+void GccEventCallback(void *gccData, void *userData)
+{
+    PluginClient *client = PluginClient::GetInstance();
     InjectPoint *inject = (InjectPoint *)userData;
     vector<string> userFuncs = client->GetFuncNameByInject(*inject);
     string key = "injectPoint";
     string value;
+
     for (auto &userFunc : userFuncs) {
         if (client->GetUserFuncState() == STATE_TIMEOUT) {
             break;
         }
         value = std::to_string(*inject) + ":" + userFunc;
         client->ReceiveSendMsg(key, value);
-        while (1) {
-            UserFuncStateEnum state = client->GetUserFuncState();
-            /* server获取到client对应函数的执行结果后,向client回复已执行完,跳出循环执行下一个函数 */
-            if (state == STATE_END) {
-                client->SetUserFuncState(STATE_WAIT_BEGIN);
-                break;
-            } else if (state == STATE_TIMEOUT) {
-                break;
-            } else if (state == STATE_BEGIN) {
-                string funcName = client->GetPluginAPIName();
-                string param = client->GetPluginAPIParam();
-                if (funcName != "") {
-                    client->SetUserFuncState(STATE_WAIT_IR);
-                    client->IRTransBegin(funcName, param);
-                }
-            }
-        }
+        WaitIRTrans(gccData, client);
     }
     LOGI("%s end!\n", __func__);
 }
@@ -107,6 +110,7 @@ static InjectPoint g_event[] = {
     HANDLE_AFTER_ALL_PASS,
     HANDLE_COMPILE_END,
     HANDLE_MANAGER_SETUP,
+    HANDLE_INCLUDE_FILE,
     HANDLE_MAX
 };
 
@@ -121,84 +125,67 @@ int RegisterPluginEvent(InjectPoint inject, const string& pluginName)
     return 0;
 }
 
-void ManagerSetupCallback(void)
+static void ManagerSetupCallback(unsigned int index, function *fun)
 {
     string key = "injectPoint";
     InjectPoint inject = HANDLE_MANAGER_SETUP;
-    std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
+    PluginClient *client = PluginClient::GetInstance();
     vector<string> userFuncs = client->GetFuncNameByInject(inject);
-    for (auto &userFunc : userFuncs) {
-        if (client->GetUserFuncState() == STATE_TIMEOUT) {
-            break;
-        }
-        string value = std::to_string(inject) + ":" + userFunc;
+    if (index < userFuncs.size()) {
+        string name = userFuncs[index].substr(0, userFuncs[index].find_first_of(","));
+        string value = std::to_string(inject) + ":" + name + ",params:" + std::to_string((uintptr_t)fun);
         client->ReceiveSendMsg(key, value);
-        while (1) {
-            UserFuncStateEnum state = client->GetUserFuncState();
-            /* server获取到client对应函数的执行结果后,向client回复已执行完,跳出循环执行下一个函数 */
-            if (state == STATE_END) {
-                client->SetUserFuncState(STATE_WAIT_BEGIN);
-                break;
-            } else if (state == STATE_TIMEOUT) {
-                break;
-            } else if (state == STATE_BEGIN) {
-                string funcName = client->GetPluginAPIName();
-                string param = client->GetPluginAPIParam();
-                if (funcName != "") {
-                    client->SetUserFuncState(STATE_WAIT_IR);
-                    client->IRTransBegin(funcName, param);
-                }
-            }
-        }
+        WaitIRTrans(nullptr, client);
     }
 }
 
-struct RltPass: rtl_opt_pass {
+struct RtlPass: rtl_opt_pass {
 public:
-    RltPass(pass_data passData): rtl_opt_pass(passData, g)
+    RtlPass(pass_data passData, unsigned int indx): rtl_opt_pass(passData, g), index(indx)
     {
     }
-    unsigned int execute(function *fun) override
+    /* unsigned int execute(function *fun) override
     {
-        ManagerSetupCallback();
+        ManagerSetupCallback(index, fun);
         return 0;
-    }
-    RltPass* clone() override
-    {
-        return this;
-    }
+    } */
+
+private:
+    unsigned int index;
 };
 
 struct SimpleIPAPass: simple_ipa_opt_pass {
 public:
-    SimpleIPAPass(pass_data passData): simple_ipa_opt_pass(passData, g)
+    SimpleIPAPass(pass_data passData, unsigned int indx): simple_ipa_opt_pass(passData, g), index(indx)
     {
     }
-    unsigned int execute(function *fun) override
+    /* unsigned int execute(function *fun) override
     {
-        ManagerSetupCallback();
+        ManagerSetupCallback(index, fun);
         return 0;
-    }
-    SimpleIPAPass* clone() override
-    {
-        return this;
-    }
+    } */
+
+private:
+    unsigned int index;
 };
 
 struct GimplePass: gimple_opt_pass {
 public:
-    GimplePass(pass_data passData): gimple_opt_pass(passData, g)
+    GimplePass(pass_data passData, unsigned int indx): gimple_opt_pass(passData, g), index(indx)
     {
     }
     unsigned int execute(function *fun) override
     {
-        ManagerSetupCallback();
+        ManagerSetupCallback(index, fun);
         return 0;
     }
     GimplePass* clone() override
     {
         return this;
     }
+
+private:
+    unsigned int index;
 };
 
 static std::map<RefPassName, string> g_refPassName {
@@ -208,16 +195,13 @@ static std::map<RefPassName, string> g_refPassName {
     {PASS_LOOP, "loop"},
 };
 
-int RegisterPassManagerSetup(InjectPoint inject, const ManagerSetupData& setupData, const string& pluginName)
+void RegisterPassManagerSetup(unsigned int index, const ManagerSetupData& setupData, const string& pluginName)
 {
-    if (inject != HANDLE_MANAGER_SETUP) {
-        return -1;
-    }
-
     struct register_pass_info passInfo;
+    string passDataName = "managerSetupPass_" + g_refPassName[setupData.refPassName];
     pass_data passData = {
         .type = GIMPLE_PASS,
-        .name = "managerSetupPass",
+        .name = passDataName.c_str(),
         .optinfo_flags = OPTGROUP_NONE,
         .tv_id = TV_NONE,
         .properties_required = 0,
@@ -233,27 +217,28 @@ int RegisterPassManagerSetup(InjectPoint inject, const ManagerSetupData& setupDa
     switch (setupData.refPassName) {
         case PASS_CFG:
             passData.type = GIMPLE_PASS;
-            passInfo.pass = new GimplePass(passData);
+            passInfo.pass = new GimplePass(passData, index);
             break;
         case PASS_PHIOPT:
             passData.type = GIMPLE_PASS;
-            passInfo.pass = new GimplePass(passData);
+            passInfo.pass = new GimplePass(passData, index);
             break;
         case PASS_SSA:
             passData.type = GIMPLE_PASS;
-            passInfo.pass = new GimplePass(passData);
+            passInfo.pass = new GimplePass(passData, index);
             break;
         case PASS_LOOP:
             passData.type = GIMPLE_PASS;
-            passInfo.pass = new GimplePass(passData);
+            passInfo.pass = new GimplePass(passData, index);
             break;
         default:
-            passInfo.pass = new GimplePass(passData);
+            passInfo.pass = new GimplePass(passData, index);
             break;
     }
     
-    register_callback(pluginName.c_str(), PLUGIN_PASS_MANAGER_SETUP, NULL, &passInfo);
-    return 0;
+    if (pluginName != "") {
+        register_callback(pluginName.c_str(), PLUGIN_PASS_MANAGER_SETUP, NULL, &passInfo);
+    }
 }
 
 static bool PluginVersionCheck(struct plugin_gcc_version *gccVersion, struct plugin_gcc_version *pluginVersion)
@@ -274,46 +259,14 @@ static bool PluginVersionCheck(struct plugin_gcc_version *gccVersion, struct plu
 
 int plugin_init(struct plugin_name_args *pluginInfo, struct plugin_gcc_version *version)
 {
+    if (!PluginVersionCheck(version, &gcc_version)) {
+        LOGE("incompatible gcc/plugin versions\n");
+        return 1;
+    }
     string pluginName = pluginInfo->base_name;
     register_callback(pluginName.c_str(), PLUGIN_FINISH, &GccEnd, NULL);
 
-    int timeout = 200; // 默认超时时间200ms
-    string shaPath;
-    string serverPath = "";
-    string arg = "";
-    LogPriority logLevel = PRIORITY_WARN;
-    PluginClient::GetArg(pluginInfo, serverPath, arg, logLevel);
-    if (PluginClient::GetInitInfo(serverPath, shaPath, timeout) != 0) {
-        LOGD("read default info from pin-gcc-client.json fail! use the default timeout=%dms\n", timeout);
-    }
-    if (serverPath == "") {
-        LOGE("server path is NULL!\n");
-        return 0;
-    }
-
-    if (PluginClient::CheckSHA256(shaPath) != 0) {
-        LOGE("sha256 check sha256 file:%s fail!\n", shaPath.c_str());
-        return 0;
-    } else {
-        LOGD("sha256 check success!\n");
-    }
-
-    string port;
-    int status;
-    if (ServerStart(timeout, serverPath, g_serverPid, port, logLevel) != 0) {
-        return 0;
-    }
-    ClientStart(timeout, arg, pluginName, port);
-    std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
-    while (1) {
-        if ((client->GetInjectFlag()) || (client->GetUserFuncState() == STATE_TIMEOUT)) {
-            break;
-        }
-        if (g_serverPid == waitpid(-1, &status, WNOHANG)) {
-            PluginClient::DeletePortFromLockFile((unsigned short)atoi(port.c_str()));
-            break;
-        }
-    }
+    PluginClient::GetInstance()->Init(pluginInfo, pluginName, g_serverPid);
     return 0;
 }
 

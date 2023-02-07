@@ -18,35 +18,26 @@
    Create: 2022-08-18
    Description:
     This file contains the declaration of the PluginClient class.
+    主要完成功能：完成和server之间grpc通信及数据解析，获取gcc插件数据并进行IR转换，完成
+    gcc注册点注入及参数保存。提供GetInstance获取client对象唯一实例，完成插件初始化并启动
+    server子进程，处理超时异常事件
 */
 
 #ifndef PLUGIN_CLIENT_H
 #define PLUGIN_CLIENT_H
 
-#include <memory>
-#include <string>
-#include <vector>
-#include <time.h>
-#include <signal.h>
-#include <json/json.h>
-
 #include "Dialect/PluginOps.h"
 #include "Dialect/PluginTypes.h"
 #include <grpcpp/grpcpp.h>
 #include "plugin.grpc.pb.h"
-#include "gcc-plugin.h"
 #include "PluginAPI/PluginClientAPI.h"
+#include "PluginClient/PluginGrpcPort.h"
+#include "PluginClient/PluginInputCheck.h"
+#include "PluginClient/PluginJson.h"
 #include "PluginClient/PluginLog.h"
 #include "Dialect/PluginDialect.h"
 
 namespace PinClient {
-using std::cout;
-using std::string;
-using std::endl;
-using std::vector;
-using std::map;
-using std::pair;
-
 using plugin::PluginService;
 using grpc::Channel;
 using grpc::ClientContext;
@@ -54,6 +45,45 @@ using grpc::Status;
 
 using plugin::ClientMsg;
 using plugin::ServerMsg;
+
+enum Grpckey {
+#define GRPC_KEY(KEY, NAME) KEY,
+#include "GrpcKey.def"
+#undef GRPC_KEY
+MAX_GRPC_KEYS
+};
+
+#define GRPC_KEY(KEY, NAME) NAME,
+const char *const grpckey[] = {
+#include "GrpcKey.def"
+};
+#undef GRPC_KEY
+
+enum GrpcValue {
+#define GRPC_VALUE(KEY, NAME) KEY,
+#include "GrpcValue.def"
+#undef GRPC_VALUE
+MAX_GRPC_VALUES
+};
+
+#define GRPC_VALUE(KEY, NAME) NAME,
+const char *const grpcValue[] = {
+#include "GrpcValue.def"
+};
+#undef GRPC_VALUE
+
+enum PassValue {
+#define PASS_VALUE(KEY, NAME) KEY,
+#include "PassValue.def"
+#undef PASS_VALUE
+MAX_PASS_VALUES
+};
+
+#define PASS_VALUE(KEY, NAME) NAME,
+const char *const passValue[] = {
+#include "PassValue.def"
+};
+#undef PASS_VALUE
 
 enum InjectPoint : uint8_t {
     HANDLE_PARSE_TYPE = 0,
@@ -68,8 +98,10 @@ enum InjectPoint : uint8_t {
     HANDLE_AFTER_ALL_PASS,
     HANDLE_COMPILE_END,
     HANDLE_MANAGER_SETUP,
+    HANDLE_INCLUDE_FILE,
     HANDLE_MAX,
 };
+
 typedef enum {
     STATE_WAIT_BEGIN = 0,
     STATE_BEGIN,
@@ -101,50 +133,17 @@ struct ManagerSetupData {
 
 class PluginClient {
 public:
-    PluginClient() = default;
-    ~PluginClient() = default;
-    PluginClient(std::shared_ptr<Channel> channel) : serviceStub(PluginService::NewStub(channel)) {}
     /* 定义的grpc服务端和客户端通信的接口函数 */
     void ReceiveSendMsg(const string& attribute, const string& value);
     /* 获取client对象实例,有且只有一个实例对象 */
-    static std::shared_ptr<PluginClient> GetInstance(void);
-    void OpJsonSerialize(vector<mlir::Plugin::FunctionOp>& data, string& out);
-    void LoopOpsJsonSerialize(vector<mlir::Plugin::LoopOp>& loops, string& out);
-    void LoopOpJsonSerialize(mlir::Plugin::LoopOp& loop, string& out);
-    void BlocksJsonSerialize(vector<uint64_t>&, string&);
-    void EdgesJsonSerialize(vector<pair<uint64_t, uint64_t> >&, string&);
-    void EdgeJsonSerialize(pair<uint64_t, uint64_t>&, string&);
-    void NopJsonSerialize(string&);
-    void FunctionOpJsonSerialize(vector<mlir::Plugin::FunctionOp>& data, string& out);
-    void LocalDeclsJsonSerialize(vector<mlir::Plugin::LocalDeclOp>& decls, string& out);
-    void GetPhiOpsJsonSerialize(vector<mlir::Plugin::PhiOp> phiOps, string& out);
-    Json::Value OperationJsonSerialize(mlir::Operation *, uint64_t&);
-    Json::Value CallOpJsonSerialize(mlir::Plugin::CallOp& data);
-    Json::Value CondOpJsonSerialize(mlir::Plugin::CondOp& data, uint64_t&);
-    Json::Value PhiOpJsonSerialize(mlir::Plugin::PhiOp& data);
-    Json::Value AssignOpJsonSerialize(mlir::Plugin::AssignOp& data);
-    Json::Value BaseOpJsonSerialize(mlir::Plugin::BaseOp data);
-    Json::Value FallThroughOpJsonSerialize(mlir::Plugin::FallThroughOp data, uint64_t&);
-    Json::Value RetOpJsonSerialize(mlir::Plugin::RetOp data, uint64_t&);
-    Json::Value ValueJsonSerialize(mlir::Value value);
-    Json::Value MemOpJsonSerialize(mlir::Plugin::MemOp& data);
-    Json::Value SSAOpJsonSerialize(mlir::Plugin::SSAOp& data);
-    /* 将Type类型数据序列化 */
-    Json::Value TypeJsonSerialize(PluginIR::PluginTypeBase& type);
-    PluginIR::PluginTypeBase TypeJsonDeSerialize(const string& data, mlir::MLIRContext &context);
+    static PluginClient *GetInstance();
     /* 获取gcc插件数据并进行IR转换，将转换后的数据序列化返回给server。param：函数入参序列化后的数据 */
-    void IRTransBegin(const string& funname, const string& param);
-    /* 从配置文件读取初始化信息 */
-    static int GetInitInfo(string& serverPath, string& shaPath, int& timeout);
-    /* 进行sha256校验 */
-    static int CheckSHA256(const string& shaPath);
-    static void CheckSafeCompileFlag(const string& argName, const string& param);
-    /* 解析gcc编译时传递的-fplugin-arg参数 */
-    static void GetArg(struct plugin_name_args *pluginInfo, string& serverPath, string& arg, LogPriority& logLevel);
+    void GetIRTransResult(void *gccData, const string& funname, const string& param);
+    void GetGccData(const string& funcName, const string& param, string& key, string& result);
     /* 将服务端传递的InjectPoint转换为plugin_event */
     static int GetEvent(InjectPoint inject, plugin_event *event);
-    static unsigned short FindUnusedPort(void); // 查找未被使用的端口号，确保并发情况下server和client一对一
-    UserFuncStateEnum GetUserFuncState(void)
+    void Init(struct plugin_name_args *pluginInfo, const string& pluginName, pid_t& serverPid);
+    UserFuncStateEnum GetUserFuncState()
     {
         return userFuncState;
     }
@@ -168,10 +167,6 @@ public:
     {
         pluginAPIParams = name;
     }
-    void SetTimeout(int time)
-    {
-        timeout = time;
-    }
     void SetPluginName(const string& pluginName)
     {
         this->pluginName = pluginName;
@@ -188,19 +183,11 @@ public:
     {
         return injectFlag;
     }
-    void SetGrpcPort(unsigned short port)
-    {
-        grpcPort = port;
-    }
-    unsigned short GetGrpcPort(void)
-    {
-        return grpcPort;
-    }
-    bool TimerInit(void);
+    bool TimerInit(clockid_t id);
     void TimerStart(int interval);
     /* 保存注入点和函数名信息,value格式为 注入点:函数名称 */
     int AddRegisteredUserFunc(const string& value);
-    map<InjectPoint, vector<string>>& GetRegisteredUserFunc(void)
+    map<InjectPoint, vector<string>>& GetRegisteredUserFunc()
     {
         return registeredUserFunc;
     }
@@ -210,13 +197,24 @@ public:
     }
     /* grpc消息处理函数 */
     void ServerMsgProc(const string& attribute, const string& value);
-    /* grpc的server被client拉起之前将port记录在/tmp/grpc_ports_pin_client.txt中, server和client建立通信后从文件中删除port，避免多进程时端口冲突
-       文件若不存在，先创建文件 */
-    static int OpenLockFile(const char *path);
-    /* 读取文件中保存的grpc端口号 */
-    static void ReadPortsFromLockFile(int fd, string& grpcPorts);
-    /* server启动异常或者grpc建立通信后,将文件中记录的端口号删除 */
-    static bool DeletePortFromLockFile(unsigned short port);
+    int ClientStart();
+    int ServerStart(pid_t& pid); // pid server线程pid
+    bool DeleteGrpcPort()
+    {
+        return grpcPort.DeletePortFromLockFile();
+    }
+    bool GetStartFlag()
+    {
+        return startFlag;
+    }
+    void SetStartFlag(bool flag)
+    {
+        startFlag = flag;
+    }
+    PluginJson &GetJson(void)
+    {
+        return json;
+    }
 
 private:
     std::unique_ptr<PluginService::Stub> serviceStub; // 保存grpc客户端stub对象
@@ -225,18 +223,17 @@ private:
     volatile UserFuncStateEnum userFuncState;
     string pluginAPIName; // 保存用户调用PluginAPI的函数名
     string pluginAPIParams; // 保存用户调用PluginAPI函数的参数
-    int timeout;
     timer_t timerId;
     string pluginName; // 向gcc插件注册回调函数时需要
     bool injectFlag; // 是否完成将注册点信息注册到gcc
-    unsigned short grpcPort; // server和client使用的端口号
+    PluginGrpcPort grpcPort;
+    PluginInputCheck input;
+    PluginJson json;
     /* 保存注册点和函数信息 */
     map<InjectPoint, vector<string>> registeredUserFunc;
+    std::shared_ptr<Channel> grpcChannel;
+    bool startFlag;
 };
-
-/* pid:子进程server返回的pid，port:查找到的未使用的端口号 */
-int ServerStart(int timeout, const string& serverPath, pid_t& pid, string& port, const LogPriority logLevel);
-int ClientStart(int timeout, const string& arg, const string& pluginName, const string& port);
 } // namespace PinClient
 
 #endif
