@@ -53,7 +53,7 @@ namespace PluginIR {
 using namespace mlir::Plugin;
 using namespace mlir;
 
-namespace detail {
+namespace Detail {
 class BlockFromGimpleTranslatorImpl {
 public:
     std::map<basic_block, Block*> blockMaps;
@@ -65,13 +65,13 @@ private:
     mlir::MLIRContext &context;
 };
 
-} // namespace detail
+} // namespace Detail
 
-GimpleToPluginOps::GimpleToPluginOps (mlir::MLIRContext &context) :
- builder(&context), typeTranslator(context), bbTranslator(new detail::BlockFromGimpleTranslatorImpl(context))
+GimpleToPluginOps::GimpleToPluginOps(mlir::MLIRContext &context) : builder(&context),
+    typeTranslator(context), bbTranslator(new Detail::BlockFromGimpleTranslatorImpl(context))
 {}
 
-GimpleToPluginOps::~GimpleToPluginOps ()
+GimpleToPluginOps::~GimpleToPluginOps()
 {}
 
 static IComparisonCode TranslateCmpCode(enum tree_code ccode)
@@ -151,7 +151,6 @@ static IExprCode TranslateExprCode(enum tree_code ccode)
         case NOP_EXPR:
             return IExprCode::Nop;
         default:
-            // printf("tcc_binary: %d not suppoted!\n", ccode);
             break;
     }
     return IExprCode::UNDEF;
@@ -185,7 +184,6 @@ static enum tree_code TranslateExprCodeToTreeCode(IExprCode ccode)
         case IExprCode::Nop:
             return NOP_EXPR;
         default:
-            // printf("tcc_binary: %d not suppoted!\n", ccode);
             break;
     }
     // FIXME.
@@ -218,6 +216,40 @@ static StringRef GimpleCodeToOperationName(enum gimple_code tcode)
         }
     }
     return ret;
+}
+
+string GimpleToPluginOps::DeclSourceFile(uint64_t gccDataAddr)
+{
+    tree decl = (tree)gccDataAddr;
+    string sourceFile = DECL_SOURCE_FILE(decl);
+    return sourceFile;
+}
+
+string GimpleToPluginOps::GetVariableName(uint64_t gccDataAddr)
+{
+    tree decl = (tree)gccDataAddr;
+    string pointer = DECL_NAME(decl) != NULL_TREE ? IDENTIFIER_POINTER(DECL_NAME(decl)) : "<unamed>";
+    return pointer;
+}
+
+string GimpleToPluginOps::GetFuncName(uint64_t gccDataAddr)
+{
+    string funcName = function_name((function *)gccDataAddr);
+    return funcName;
+}
+
+int GimpleToPluginOps::DeclSourceLine(uint64_t gccDataAddr)
+{
+    tree decl = (tree)gccDataAddr;
+    int line = DECL_SOURCE_LINE(decl);
+    return line;
+}
+
+int GimpleToPluginOps::DeclSourceColumn(uint64_t gccDataAddr)
+{
+    tree decl = (tree)gccDataAddr;
+    int column = DECL_SOURCE_COLUMN(decl);
+    return column;
 }
 
 uint64_t GimpleToPluginOps::CreateBlock(uint64_t funcAddr, uint64_t bbAddr)
@@ -484,7 +516,7 @@ void GimpleToPluginOps::RedirectFallthroughTarget(uint64_t src, uint64_t dest)
 {
     basic_block srcbb = reinterpret_cast<basic_block>(reinterpret_cast<void*>(src));
     basic_block destbb = reinterpret_cast<basic_block>(reinterpret_cast<void*>(dest));
-    assert(single_succ_p (srcbb));
+    assert(single_succ_p(srcbb));
     redirect_edge_and_branch (single_succ_edge(srcbb), destbb);
 }
 
@@ -537,7 +569,7 @@ Operation *GimpleToPluginOps::BuildOperation(uint64_t id)
             break;
         }
         case GIMPLE_COND: {
-            assert(EDGE_COUNT (stmt->bb->succs) == 2);
+            assert(EDGE_COUNT(stmt->bb->succs) == 2);
             Block* trueBlock = bbTranslator->blockMaps[EDGE_SUCC(stmt->bb, 0)->dest];
             Block* falseBlock = bbTranslator->blockMaps[EDGE_SUCC(stmt->bb, 1)->dest];
             CondOp condOp = BuildCondOp(id, (uint64_t)stmt->bb,
@@ -644,15 +676,13 @@ uint64_t GimpleToPluginOps::CreateGcallVec(uint64_t blockId, uint64_t funcId,
     gcall *ret = gimple_build_call_vec (fn, vargs);
     basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
-        gimple_stmt_iterator si;
-        si = gsi_last_bb (bb);
+        gimple_stmt_iterator si = gsi_last_bb (bb);
         gsi_insert_after (&si, ret, GSI_NEW_STMT);
     }
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
 }
 
-uint32_t GimpleToPluginOps::AddPhiArg(uint64_t phiId, uint64_t argId,
-                                  uint64_t predId, uint64_t succId)
+uint32_t GimpleToPluginOps::AddPhiArg(uint64_t phiId, uint64_t argId, uint64_t predId, uint64_t succId)
 {
     gphi *phi = reinterpret_cast<gphi*>(phiId);
     tree arg = reinterpret_cast<tree>(argId);
@@ -681,31 +711,25 @@ uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
         if (iCode == IExprCode::UNDEF) {
             ret = gimple_build_assign(vargs[0], vargs[1]);
         } else {
-            ret = gimple_build_assign(vargs[0],
-                                      TranslateExprCodeToTreeCode(iCode),
-                                      vargs[1]);
+            ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode), vargs[1]);
         }
     } else if (vargs.size() == 3) {
-        ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode),
-                                  vargs[1], vargs[2]);
+        ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode), vargs[1], vargs[2]);
     } else if (vargs.size() == 4) {
-        ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode),
-                                  vargs[1], vargs[2], vargs[3]);
+        ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode), vargs[1], vargs[2], vargs[3]);
     } else {
         printf("ERROR size: %ld.\n", vargs.size());
     }
     basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
-        gimple_stmt_iterator si;
-        si = gsi_last_bb (bb);
+        gimple_stmt_iterator si = gsi_last_bb (bb);
         gsi_insert_after (&si, ret, GSI_NEW_STMT);
     }
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
 }
 
 uint64_t GimpleToPluginOps::CreateGcond(uint64_t blockId, IComparisonCode iCode,
-                                        uint64_t lhsId, uint64_t rhsId,
-                                        uint64_t tbaddr, uint64_t fbaddr)
+    uint64_t lhsId, uint64_t rhsId, uint64_t tbaddr, uint64_t fbaddr)
 {
     tree lhs = reinterpret_cast<tree>(lhsId);
     tree rhs = reinterpret_cast<tree>(rhsId);
@@ -713,14 +737,13 @@ uint64_t GimpleToPluginOps::CreateGcond(uint64_t blockId, IComparisonCode iCode,
                                     lhs, rhs, NULL_TREE, NULL_TREE);
     basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
-        gimple_stmt_iterator si;
-        si = gsi_last_bb (bb);
+        gimple_stmt_iterator si = gsi_last_bb (bb);
         gsi_insert_after (&si, ret, GSI_NEW_STMT);
     }
     basic_block tb = reinterpret_cast<basic_block>(tbaddr);
     basic_block fb = reinterpret_cast<basic_block>(fbaddr);
-    assert(make_edge (bb, tb, EDGE_TRUE_VALUE));
-    assert(make_edge (bb, fb, EDGE_FALSE_VALUE));
+    assert(make_edge(bb, tb, EDGE_TRUE_VALUE));
+    assert(make_edge(bb, fb, EDGE_FALSE_VALUE));
     return reinterpret_cast<uint64_t>(reinterpret_cast<void*>(ret));
 }
 
@@ -728,12 +751,11 @@ void GimpleToPluginOps::CreateFallthroughOp(uint64_t addr, uint64_t destaddr)
 {
     basic_block src = reinterpret_cast<basic_block>(addr);
     basic_block dest = reinterpret_cast<basic_block>(destaddr);
-    assert(make_single_succ_edge (src, dest, EDGE_FALLTHRU));
+    assert(make_single_succ_edge(src, dest, EDGE_FALLTHRU));
 }
 
 CondOp GimpleToPluginOps::BuildCondOp(uint64_t gcondId, uint64_t address,
-                                      Block* b1, Block* b2, uint64_t tbaddr,
-                                      uint64_t fbaddr)
+    Block* b1, Block* b2, uint64_t tbaddr, uint64_t fbaddr)
 {
     gcond *stmt = reinterpret_cast<gcond*>(gcondId);
     tree lhsPtr = gimple_cond_lhs(stmt);
@@ -812,16 +834,9 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
     mlir::Value opValue;
     switch (TREE_CODE(t)) {
         case INTEGER_CST : {
-            mlir::Attribute initAttr;
-            if (tree_fits_shwi_p(t)) {
-                signed HOST_WIDE_INT sinit = tree_to_shwi(t);
-                initAttr = builder.getI64IntegerAttr(sinit);
-            } else if (tree_fits_uhwi_p(t)) {
-                unsigned HOST_WIDE_INT uinit = tree_to_uhwi(t);
-                initAttr = builder.getI64IntegerAttr(uinit);
-            } else {
-                abort();
-            }
+            unsigned HOST_WIDE_INT init = tree_to_uhwi(t);
+            // FIXME : AnyAttr!
+            mlir::Attribute initAttr = builder.getI64IntegerAttr(init);
             opValue = builder.create<ConstOp>(
                     builder.getUnknownLoc(), treeId, IDefineCode::IntCST,
                     readOnly, initAttr, rPluginType);
@@ -863,11 +878,9 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
 void GimpleToPluginOps::DebugValue(uint64_t valId)
 {
     tree t = reinterpret_cast<tree>(valId);
-    // debug_tree (t);
 }
 
-mlir::Value GimpleToPluginOps::BuildMemRef(PluginIR::PluginTypeBase type,
-                                           uint64_t baseId, uint64_t offsetId)
+mlir::Value GimpleToPluginOps::BuildMemRef(PluginIR::PluginTypeBase type, uint64_t baseId, uint64_t offsetId)
 {
     tree refType = (tree)pluginTypeTranslator.translateType(type);
     tree base = (tree)baseId;
@@ -883,7 +896,7 @@ bool GimpleToPluginOps::ProcessGimpleStmt(intptr_t bbPtr, Region& rg)
     for (gphi_iterator si = gsi_start_phis (bb); !gsi_end_p (si); gsi_next (&si)) {
         gphi *p = si.phi ();
         uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(p));
-        BuildPhiOp(id); // FIXME: Check result. 
+        BuildPhiOp(id); // FIXME: Check result.
     }
 
     for (gimple_stmt_iterator si = gsi_start_bb (bb); !gsi_end_p (si); gsi_next (&si)) {
@@ -892,7 +905,7 @@ bool GimpleToPluginOps::ProcessGimpleStmt(intptr_t bbPtr, Region& rg)
         if (BuildOperation(id) == nullptr) {
             printf("ERROR: BuildOperation!");
         }
-        if(gimple_code(stmt) == GIMPLE_COND) {
+        if (gimple_code(stmt) == GIMPLE_COND) {
             putTerminator = true;
         }
     }
@@ -907,7 +920,6 @@ bool GimpleToPluginOps::ProcessGimpleStmt(intptr_t bbPtr, Region& rg)
             // Process other condition, such as return
             builder.create<RetOp>(builder.getUnknownLoc(), (uint64_t)bb);
         } else {
-            // Should unreachable;
             assert(false);
         }
     }

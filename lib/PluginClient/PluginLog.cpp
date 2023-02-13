@@ -36,6 +36,7 @@ constexpr int LOG_BUF_SIZE = 10240;
 constexpr int BASE_DATE = 1900;
 static LogPriority g_priority = PRIORITY_WARN; // log打印的级别控制
 static std::mutex g_mutex; // 线程锁
+static unsigned int g_logFileSize = 10 * 1024 * 1024;
 
 shared_ptr<fstream> g_fs;
 static void LogWriteInit(const string& data);
@@ -44,16 +45,22 @@ static void (*g_writeToLog)(const string& data) = LogWriteInit;
 static void GetLogFileName(string& fileName)
 {
     time_t nowTime = time(nullptr);
+    if (nowTime == -1) {
+        printf("%s fail\n", __func__);
+    }
     struct tm *t = localtime(&nowTime);
     char buf[100];
-    sprintf(buf, "/tmp/pin_client%d_%4d%02d%02d_%02d_%02d_%02d.log", getpid(),
+    int ret = sprintf(buf, "/tmp/pin_client%d_%4d%02d%02d_%02d_%02d_%02d.log", getpid(),
         t->tm_year + BASE_DATE, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
+    if (ret < 0) {
+        printf("%s sprintf fail\n", __func__);
+    }
     fileName = buf;
 }
 
 static void LogWriteFile(const string& data)
 {
-    if (g_fs->tellg() > LOG_FILE_SIZE) {
+    if (g_fs->tellg() > g_logFileSize) {
         g_fs->close();
         string fileName;
         GetLogFileName(fileName);
@@ -75,7 +82,7 @@ static void LogWriteInit(const string& data)
     g_writeToLog(data);
 }
 
-void CloseLog(void)
+void CloseLog()
 {
     if (g_fs) {
         if (g_fs->is_open()) {
@@ -84,14 +91,24 @@ void CloseLog(void)
     }
 }
 
+void SetLogFileSize(unsigned int size)
+{
+    g_logFileSize = size;
+}
+
 static void LogWrite(const char *tag, const char *msg)
 {
     time_t nowTime = time(nullptr);
+    if (nowTime == -1) {
+        printf("%s fail\n", __func__);
+    }
     struct tm *t = localtime(&nowTime);
     char buf[30];
-    sprintf(buf, "%4d-%02d-%02d %02d:%02d:%02d ", t->tm_year + BASE_DATE, t->tm_mon + 1, t->tm_mday,
+    int ret = sprintf(buf, "%4d-%02d-%02d %02d:%02d:%02d ", t->tm_year + BASE_DATE, t->tm_mon + 1, t->tm_mday,
         t->tm_hour, t->tm_min, t->tm_sec);
-
+    if (ret < 0) {
+        printf("%s sprintf fail\n", __func__);
+    }
     string stag = tag;
     string smsg = msg;
     string data = buf + stag + smsg;
@@ -104,7 +121,10 @@ void LogPrint(LogPriority priority, const char *tag, const char *fmt, ...)
     char buf[LOG_BUF_SIZE];
 
     va_start(ap, fmt);
-    vsnprintf(buf, LOG_BUF_SIZE, fmt, ap);
+    int ret = vsnprintf(buf, LOG_BUF_SIZE, fmt, ap);
+    if (ret < 0) {
+        printf("%s vsnprintf fail\n", __func__);
+    }
     va_end(ap);
 
     if (priority <= g_priority) {

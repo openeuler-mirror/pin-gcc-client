@@ -1,0 +1,6 @@
+/* Definition of GRPC value */
+
+GRPC_VALUE(START_VALUE, "ok")
+GRPC_VALUE(STOP_VALUE, "ok")
+GRPC_VALUE(USERFUNC_VALUE, "execution completed")
+GRPC_VALUE(FINISH_VALUE, "finished")

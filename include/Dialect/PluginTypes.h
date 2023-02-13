@@ -74,13 +74,13 @@ private:
     unsigned size;
 }; // class PluginTypeBase
 
-namespace detail {
+namespace Detail {
     struct PluginIntegerTypeStorage;
     struct PluginFloatTypeStorage;
     struct PluginPointerTypeStorage;
 }
 
-class PluginIntegerType : public Type::TypeBase<PluginIntegerType, PluginTypeBase, detail::PluginIntegerTypeStorage> {
+class PluginIntegerType : public Type::TypeBase<PluginIntegerType, PluginTypeBase, Detail::PluginIntegerTypeStorage> {
 public:
     using Base::Base;
 
@@ -104,7 +104,7 @@ public:
     SignednessSemantics getSignedness() const;
 };
 
-class PluginFloatType : public Type::TypeBase<PluginFloatType, PluginTypeBase, detail::PluginFloatTypeStorage> {
+class PluginFloatType : public Type::TypeBase<PluginFloatType, PluginTypeBase, Detail::PluginFloatTypeStorage> {
 public:
     using Base::Base;
 
@@ -115,7 +115,7 @@ public:
     unsigned getWidth() const;
 };
 
-class PluginPointerType : public Type::TypeBase<PluginPointerType, PluginTypeBase, detail::PluginPointerTypeStorage> {
+class PluginPointerType : public Type::TypeBase<PluginPointerType, PluginTypeBase, Detail::PluginPointerTypeStorage> {
 public:
     using Base::Base;
 
@@ -133,7 +133,6 @@ public:
     using Base::Base;
 
     PluginTypeID getPluginTypeID ();
-
 }; // class PluginVoidType
 
 class PluginUndefType : public Type::TypeBase<PluginUndefType, PluginTypeBase, TypeStorage> {
@@ -141,7 +140,6 @@ public:
     using Base::Base;
 
     PluginTypeID getPluginTypeID ();
-
 }; // class PluginUndefType
 
 class PluginBooleanType : public Type::TypeBase<PluginBooleanType, PluginTypeBase, TypeStorage> {
@@ -149,7 +147,6 @@ public:
     using Base::Base;
 
     PluginTypeID getPluginTypeID ();
-
 }; // class PluginBooleanType
 
 } // namespace PluginIR

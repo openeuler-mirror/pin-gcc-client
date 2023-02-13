@@ -18,6 +18,8 @@
    Create: 2022-08-18
    Description:
     This file contains the declaration of the RegisterPluginEvent.
+    主要完成功能：提供RegisterPluginEvent和RegisterPassManagerSetup两个注册gcc
+    回调点接口
 */
 
 #ifndef IRTRANS_PLUGIN_H
@@ -26,6 +28,6 @@
 #include "PluginClient/PluginClient.h"
 
 int RegisterPluginEvent(PinClient::InjectPoint inject, const std::string& pluginName);
-int RegisterPassManagerSetup(PinClient::InjectPoint inject, const PinClient::ManagerSetupData& setupData,
+void RegisterPassManagerSetup(unsigned int index, const PinClient::ManagerSetupData& setupData,
     const std::string& pluginName);
 #endif

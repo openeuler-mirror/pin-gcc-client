@@ -19,27 +19,16 @@
    Description:
     This file contains the implementation of the PluginClient class..
 */
+#include <semaphore.h>
+#include "gccPlugin/gccPlugin.h"
 #include "Dialect/PluginDialect.h"
 #include "Dialect/PluginTypes.h"
 #include "PluginAPI/PluginClientAPI.h"
-#include "IRTrans/IRTransPlugin.h"
-
-#include <thread>
-#include <fstream>
-#include <iostream>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <sys/file.h>
-#include <unistd.h>
-#include <json/json.h>
 
 namespace PinClient {
 using namespace mlir::Plugin;
 using namespace mlir;
-using std::ios;
-static std::shared_ptr<PluginClient> g_plugin = nullptr;
-const char *g_portFilePath = "/tmp/grpc_ports_pin_client.txt";
-static std::shared_ptr<Channel> g_grpcChannel = nullptr;
+static PluginClient g_plugin;
 
 std::map<InjectPoint, plugin_event> g_injectPoint {
     {HANDLE_PARSE_TYPE, PLUGIN_FINISH_TYPE},
@@ -56,15 +45,9 @@ std::map<InjectPoint, plugin_event> g_injectPoint {
     {HANDLE_MANAGER_SETUP, PLUGIN_PASS_MANAGER_SETUP},
 };
 
-std::shared_ptr<PluginClient> PluginClient::GetInstance(void)
+PluginClient *PluginClient::GetInstance()
 {
-    return g_plugin;
-}
-
-static uintptr_t GetID(Json::Value node)
-{
-    string id = node.asString();
-    return atol(id.c_str());
+    return &g_plugin;
 }
 
 int PluginClient::GetEvent(InjectPoint inject, plugin_event *event)
@@ -77,989 +60,847 @@ int PluginClient::GetEvent(InjectPoint inject, plugin_event *event)
     return -1;
 }
 
-Json::Value PluginClient::TypeJsonSerialize (PluginIR::PluginTypeBase& type)
+void PluginClient::GetGccData(const string& funcName, const string& param, string& key, string& result)
 {
-    Json::Value root;
-    Json::Value operationObj;
-    Json::Value item;
-
-    uint64_t ReTypeId;
-    uint64_t ReTypeWidth;
-
-    ReTypeId = static_cast<uint64_t>(type.getPluginTypeID());
-    item["id"] = std::to_string(ReTypeId);
-
-    if (auto elemTy = type.dyn_cast<PluginIR::PluginPointerType>()) {
-        auto baseTy = elemTy.getElementType().dyn_cast<PluginIR::PluginTypeBase>();
-        item["elementType"] = TypeJsonSerialize(baseTy);
-        if (elemTy.isReadOnlyElem()) {
-            item["elemConst"] = "1";
-        }else {
-            item["elemConst"] = "0";
-        }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI pluginAPI(context);
+    uint64_t gccDataAddr = (uint64_t)atol(param.c_str());
+    if (gccDataAddr == 0) {
+        LOGE("%s gcc_data address is NULL!\n", __func__);
+        return;
     }
-
-    if (type.getPluginIntOrFloatBitWidth() != 0) {
-        ReTypeWidth = type.getPluginIntOrFloatBitWidth();
-        item["width"] = std::to_string(ReTypeWidth);
-    }
-
-    if (type.isSignedPluginInteger()) {
-        item["signed"] = "1";
-    }
-
-    if (type.isUnsignedPluginInteger()) {
-        item["signed"] = "0";
-    }
-
-    root["type"] = item;
-    return root;
-}
-
-PluginIR::PluginTypeBase PluginClient::TypeJsonDeSerialize(const string& data, mlir::MLIRContext &context)
-{
-    Json::Value root;
-    Json::Reader reader;
-    Json::Value node;
-    reader.parse(data, root);
-
-    PluginIR::PluginTypeBase baseType;
-
-    Json::Value type = root["type"];
-    uint64_t id = GetID(type["id"]);
-    PluginIR::PluginTypeID PluginTypeId = static_cast<PluginIR::PluginTypeID>(id);
-
-    if (type["signed"] && (id >= static_cast<uint64_t>(PluginIR::UIntegerTy1ID) 
-        && id <= static_cast<uint64_t>(PluginIR::IntegerTy64ID))) {
-        string s = type["signed"].asString();
-        uint64_t width = GetID(type["width"]);
-        if (s == "1") {
-            baseType = PluginIR::PluginIntegerType::get(&context, width, PluginIR::PluginIntegerType::Signed);
-        }
-        else {
-            baseType = PluginIR::PluginIntegerType::get(&context, width, PluginIR::PluginIntegerType::Unsigned);
-        }
-    }
-    else if (type["width"] && (id == static_cast<uint64_t>(PluginIR::FloatTyID)
-             || id == static_cast<uint64_t>(PluginIR::DoubleTyID)) ) {
-        uint64_t width = GetID(type["width"]);
-        baseType = PluginIR::PluginFloatType::get(&context, width);
-    }else if (id == static_cast<uint64_t>(PluginIR::PointerTyID)) {
-        mlir::Type elemTy = TypeJsonDeSerialize(type["elementType"].toStyledString(), context);
-        baseType = PluginIR::PluginPointerType::get(&context, elemTy, type["elemConst"].asString() == "1" ? 1 : 0);
-    }else {
-        if (PluginTypeId == PluginIR::VoidTyID)
-            baseType = PluginIR::PluginVoidType::get(&context);
-        if (PluginTypeId == PluginIR::BooleanTyID)
-            baseType = PluginIR::PluginBooleanType::get(&context);
-        if (PluginTypeId == PluginIR::UndefTyID)
-            baseType = PluginIR::PluginUndefType::get(&context);
-    }
-
-    return baseType;
-}
-
-void PluginClient::FunctionOpJsonSerialize(vector<FunctionOp>& data, string& out)
-{
-    Json::Value root;
-    Json::Value operationObj;
-    Json::Value item;
-
-    int i = 0;
-    string operation;
-    
-    for (auto& d: data) {
-        item["id"] = std::to_string(d.idAttr().getInt());
-        // item["opCode"] = OP_FUNCTION;
-        if (d.declaredInlineAttr().getValue())
-            item["attributes"]["declaredInline"] = "1";
-        else
-            item["attributes"]["declaredInline"] = "0";
-        item["attributes"]["funcName"] = d.funcNameAttr().getValue().str().c_str();
-        auto &region = d.getRegion();
-        size_t bbIdx = 0;
-        for (auto &b : region) {
-            string blockStr = "block" + std::to_string(bbIdx++);
-            uint64_t bbAddress = 0;
-            size_t opIdx = 0;
-            for (auto &inst : b) {
-                if (isa<PlaceholderOp>(inst)) continue;
-                else if (isa<SSAOp>(inst)) continue;
-                else if (isa<MemOp>(inst)) continue;
-                else if (isa<ConstOp>(inst)) continue;
-                string opStr = "Operation" + std::to_string(opIdx++);
-                item["region"][blockStr]["ops"][opStr] = OperationJsonSerialize(&inst, bbAddress);
-            }
-            assert(bbAddress != 0);
-            item["region"][blockStr]["address"] = std::to_string(bbAddress);
-        }
-        operation = "FunctionOp" + std::to_string(i++);
-        root[operation] = item;
-        item.clear();
-    }
-    out = root.toStyledString();
-}
-
-Json::Value PluginClient::OperationJsonSerialize(mlir::Operation *operation,
-                                                 uint64_t &bbId)
-{
-    Json::Value root;
-    if (AssignOp op = llvm::dyn_cast<AssignOp>(operation)) {
-        root = AssignOpJsonSerialize(op);
-    } else if (CallOp op = llvm::dyn_cast<CallOp>(operation)) {
-        root = CallOpJsonSerialize(op);
-    } else if (CondOp op = llvm::dyn_cast<CondOp>(operation)) {
-        root = CondOpJsonSerialize(op, bbId);
-    } else if (PhiOp op = llvm::dyn_cast<PhiOp>(operation)) {
-        root = PhiOpJsonSerialize(op);
-    } else if (FallThroughOp op = llvm::dyn_cast<FallThroughOp>(operation)) {
-        root = FallThroughOpJsonSerialize(op, bbId);
-    } else if (RetOp op = llvm::dyn_cast<RetOp>(operation)) {
-        root = RetOpJsonSerialize(op, bbId);
-    } else if (BaseOp op = llvm::dyn_cast<BaseOp>(operation)) {
-        root = BaseOpJsonSerialize(op);
-    }
-    root["OperationName"] = operation->getName().getStringRef().str();
-    return root;
-}
-
-Json::Value PluginClient::BaseOpJsonSerialize(BaseOp data)
-{
-    Json::Value root;
-    root["id"] = std::to_string(data.idAttr().getInt());
-    root["opCode"] = data.opCodeAttr().getValue().str().c_str();
-    return root;
-}
-
-Json::Value PluginClient::RetOpJsonSerialize(RetOp data, uint64_t &bbId)
-{
-    Json::Value root;
-    bbId = data.addressAttr().getInt();
-    root["address"] = std::to_string(bbId);
-    return root;
-}
-
-Json::Value PluginClient::FallThroughOpJsonSerialize(FallThroughOp data,
-                                                     uint64_t &bbId)
-{
-    Json::Value root;
-    bbId = data.addressAttr().getInt();
-    root["address"] = std::to_string(bbId);
-    root["destaddr"] = std::to_string(data.destaddrAttr().getInt());
-    return root;
-}
-
-void PluginClient::LocalDeclsJsonSerialize(vector<LocalDeclOp>& decls, string& out)
-{
-    Json::Value root;
-    Json::Value operationObj;
-    Json::Value item;
-    int i = 0;
-    string operation;
-
-    for (auto& decl: decls) {
-        item["id"] = std::to_string(decl.idAttr().getInt());
-        item["attributes"]["symName"] = decl.symNameAttr().getValue().str().c_str();
-        item["attributes"]["typeID"] = decl.typeIDAttr().getInt();
-        item["attributes"]["typeWidth"] = decl.typeWidthAttr().getInt();
-        operation = "localDecl" + std::to_string(i++);
-        root[operation] = item;
-        item.clear();
-    }
-    out = root.toStyledString();
-}
-
-void PluginClient::LoopOpsJsonSerialize(vector<mlir::Plugin::LoopOp>& loops, string& out)
-{
-    Json::Value root;
-    Json::Value operationObj;
-    Json::Value item;
-    int i = 0;
-    string operation;
-
-    for (auto&loop: loops) {
-        item["id"] = std::to_string(loop.idAttr().getInt());
-        item["index"] = std::to_string(loop.indexAttr().getInt());
-        item["attributes"]["innerLoopId"] = std::to_string(loop.innerLoopIdAttr().getInt());
-        item["attributes"]["outerLoopId"] = std::to_string(loop.outerLoopIdAttr().getInt());
-        item["attributes"]["numBlock"] = std::to_string(loop.numBlockAttr().getInt());
-        operation = "loopOp" + std::to_string(i++);
-        root[operation] = item;
-        item.clear();
-    }
-    out = root.toStyledString();
-}
-
-void PluginClient::LoopOpJsonSerialize(mlir::Plugin::LoopOp& loop, string& out)
-{
-    Json::Value root;
-    root["id"] = std::to_string(loop.idAttr().getInt());
-    root["index"] = std::to_string(loop.indexAttr().getInt());
-    root["attributes"]["innerLoopId"] = std::to_string(loop.innerLoopIdAttr().getInt());
-    root["attributes"]["outerLoopId"] = std::to_string(loop.outerLoopIdAttr().getInt());
-    root["attributes"]["numBlock"] = std::to_string(loop.numBlockAttr().getInt());
-    out = root.toStyledString();
-}
-
-void PluginClient::BlocksJsonSerialize(vector<uint64_t>& blocks, string& out)
-{
-    Json::Value root;
-    Json::Value item;
-    int i = 0;
-    string index;
-
-    for(auto& block : blocks) {
-        item["id"] = std::to_string(block);
-        index = "block" + std::to_string(i++);
-        root[index] = item;
-        item.clear();
-    }
-    out = root.toStyledString();
-}
-
-void PluginClient::EdgesJsonSerialize(vector<pair<uint64_t, uint64_t> >& edges, string& out)
-{
-    Json::Value root;
-    Json::Value item;
-    int i = 0;
-    string index;
-
-    for(auto& edge : edges) {
-        item["src"] = std::to_string(edge.first);
-        item["dest"] = std::to_string(edge.second);
-        index = "edge" + std::to_string(i++);
-        root[index] = item;
-        item.clear();
-    }
-    out = root.toStyledString();
-}
-
-void PluginClient::EdgeJsonSerialize(pair<uint64_t, uint64_t>& edge, string& out)
-{
-    Json::Value root;
-    root["src"] = std::to_string(edge.first);
-    root["dest"] = std::to_string(edge.second);
-    out = root.toStyledString();
-}
-
-// void类型的Json序列化
-void PluginClient::NopJsonSerialize(string& out)
-{
-    Json::Value root;
-    out = root.toStyledString();
-}
-
-void PluginClient::GetPhiOpsJsonSerialize(vector<PhiOp> phiOps, string & out)
-{
-    Json::Value root;
-    Json::Value item;
-    int i = 0;
-    string operation;
-    uint64_t placeholder = 0;
-    for (auto phi : phiOps) {
-        item = OperationJsonSerialize(phi.getOperation(), placeholder);
-        operation = "operation" + std::to_string(i++);
-        root[operation] = item;
-        item.clear();
-    }
-    out = root.toStyledString();
-}
-
-Json::Value PluginClient::CallOpJsonSerialize(CallOp& data)
-{
-    Json::Value item;
-    item["id"] = std::to_string(data.idAttr().getInt());
-    item["callee"] = data.callee().str();
-    item["OperationName"] = data.getOperation()->getName().getStringRef().str();
-    size_t opIdx = 0;
-    for (mlir::Value v : data.getArgOperands()) {
-        string input = "input" + std::to_string(opIdx++);
-        item["operands"][input] = ValueJsonSerialize(v);
-    }
-    // auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
-    // item["retType"] = TypeJsonSerialize(retTy);
-    return item;
-}
-
-Json::Value PluginClient::CondOpJsonSerialize(CondOp& data, uint64_t &bbId)
-{
-    Json::Value item;
-    item["id"] = std::to_string(data.idAttr().getInt());
-    item["condCode"] = std::to_string(data.condCodeAttr().getInt());
-    item["lhs"] = ValueJsonSerialize(data.GetLHS());
-    item["rhs"] = ValueJsonSerialize(data.GetRHS());
-    bbId = data.addressAttr().getInt();
-    item["address"] = std::to_string(bbId);
-    item["tbaddr"] = std::to_string(data.tbaddrAttr().getInt());
-    item["fbaddr"] = std::to_string(data.fbaddrAttr().getInt());
-    return item;
-}
-
-Json::Value PluginClient::PhiOpJsonSerialize(PhiOp& data)
-{
-    Json::Value item;
-    item["id"] = std::to_string(data.idAttr().getInt());
-    item["capacity"] = std::to_string(data.capacityAttr().getInt());
-    item["nArgs"] = std::to_string(data.nArgsAttr().getInt());
-    item["OperationName"] = data.getOperation()->getName().getStringRef().str();
-    size_t opIdx = 0;
-    for (mlir::Value v : data.operands()) {
-        string input = "input" + std::to_string(opIdx++);
-        item["operands"][input] = ValueJsonSerialize(v);
-    }
-    // auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
-    // item["retType"] = TypeJsonSerialize(retTy);
-    return item;
-}
-
-Json::Value PluginClient::SSAOpJsonSerialize(SSAOp& data)
-{
-    Json::Value item;
-    item["id"] = std::to_string(data.idAttr().getInt());
-    item["defCode"] = std::to_string(data.defCodeAttr().getInt());
-    item["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
-    item["nameVarId"] = std::to_string(data.nameVarIdAttr().getInt());
-    item["ssaParmDecl"] = std::to_string(data.ssaParmDeclAttr().getInt());
-    item["version"] = std::to_string(data.versionAttr().getInt());
-    item["definingId"] = std::to_string(data.definingIdAttr().getInt());
-    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
-    item["retType"] = TypeJsonSerialize(retTy);
-    return item;
-}
-
-Json::Value PluginClient::AssignOpJsonSerialize(AssignOp& data)
-{
-    Json::Value item;
-    item["id"] = std::to_string(data.idAttr().getInt());
-    item["exprCode"] = std::to_string(data.exprCodeAttr().getInt());
-    item["OperationName"] = data.getOperation()->getName().getStringRef().str();
-    size_t opIdx = 0;
-    for (mlir::Value v : data.operands()) {
-        string input = "input" + std::to_string(opIdx++);
-        item["operands"][input] = ValueJsonSerialize(v);
-    }
-    // auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
-    // item["retType"] = TypeJsonSerialize(retTy);
-    return item;
-}
-
-Json::Value PluginClient::ValueJsonSerialize(mlir::Value data)
-{
-    Json::Value root;
-    if (ConstOp cOp = data.getDefiningOp<ConstOp>()) {
-        auto retTy = data.getType().dyn_cast<PluginIR::PluginTypeBase>();
-        root["retType"] = TypeJsonSerialize(retTy);
-        root["id"] = std::to_string(cOp.idAttr().getInt());
-        root["defCode"] = std::to_string(
-                static_cast<int32_t>(IDefineCode::IntCST));
-        root["value"] = std::to_string(
-                cOp.initAttr().cast<mlir::IntegerAttr>().getInt());
-    } else if (MemOp mOp = data.getDefiningOp<MemOp>()) {
-        root = MemOpJsonSerialize(mOp);
-    } else if (SSAOp sOp = data.getDefiningOp<SSAOp>()) {
-        root = SSAOpJsonSerialize(sOp);
-    }  else if (PlaceholderOp phOp = data.getDefiningOp<PlaceholderOp>()) {
-        root["id"] = std::to_string(phOp.idAttr().getInt());
-        root["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
-        auto retTy = phOp.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
-        root["retType"] = TypeJsonSerialize(retTy);
+    if (funcName == "GetDeclSourceFile") {
+        string sourceFile = pluginAPI.GetDeclSourceFile(gccDataAddr);
+        json.StringSerialize(sourceFile, result);
+        key = "StringResult";
+    } else if (funcName == "GetDeclSourceLine") {
+        int line = pluginAPI.GetDeclSourceLine(gccDataAddr);
+        json.IntegerSerialize(line, result);
+        key = "IntegerResult";
+    } else if (funcName == "GetDeclSourceColumn") {
+        int column = pluginAPI.GetDeclSourceColumn(gccDataAddr);
+        json.IntegerSerialize(column, result);
+        key = "IntegerResult";
+    } else if (funcName == "VariableName") {
+        string variableName = pluginAPI.VariableName(gccDataAddr);
+        json.StringSerialize(variableName, result);
+        key = "StringResult";
+    } else if (funcName == "FuncName") {
+        string funcName = pluginAPI.FuncName(gccDataAddr);
+        json.StringSerialize(funcName, result);
+        key = "StringResult";
     } else {
-        LOGE("ERROR: Can't Serialize!");
+        LOGW("function: %s not found!\n", funcName.c_str());
     }
-    return root;
 }
 
-Json::Value PluginClient::MemOpJsonSerialize(MemOp& data)
+void GetAllFuncResult(PluginClient *client, Json::Value& root, string& result)
 {
-    Json::Value root;
-    root["id"] = std::to_string(data.idAttr().getInt());
-    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
-    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
-    mlir::Value base = data.GetBase();
-    mlir::Value offset = data.GetOffset();
-    root["base"] = ValueJsonSerialize(base);
-    root["offset"] = ValueJsonSerialize(offset);
-    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
-    root["retType"] = TypeJsonSerialize(retTy);
-    return root;
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    vector<FunctionOp> allFuncOps = clientAPI.GetAllFunc();
+    PluginJson json = client->GetJson();
+    json.FunctionOpJsonSerialize(allFuncOps, result);
+    client->ReceiveSendMsg("FuncOpResult", result);
 }
 
-void PluginClient::IRTransBegin(const string& funcName, const string& param)
+void GetLocalDeclsResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "funcId":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string funcIdKey = "funcId";
+    uint64_t funcID = atol(root[funcIdKey].asString().c_str());
+    vector<LocalDeclOp> decls = clientAPI.GetDecls(funcID);
+    PluginJson json = client->GetJson();
+    json.LocalDeclsJsonSerialize(decls, result);
+    client->ReceiveSendMsg("LocalDeclOpResult", result);
+}
+
+void GetLoopsFromFuncResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "funcId":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string funcIdKey = "funcId";
+    uint64_t funcID = atol(root[funcIdKey].asString().c_str());
+    vector<LoopOp> irLoops = clientAPI.GetLoopsFromFunc(funcID);
+    PluginJson json = client->GetJson();
+    json.LoopOpsJsonSerialize(irLoops, result);
+    client->ReceiveSendMsg("LoopOpsResult", result);
+}
+
+void GetLoopByIdResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    LoopOp irLoop = clientAPI.GetLoopById(loopId);
+    PluginJson json = client->GetJson();
+    json.LoopOpJsonSerialize(irLoop, result);
+    client->ReceiveSendMsg("LoopOpResult", result);
+}
+
+void IsBlockInsideResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    ///     "blockId":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    std::string blockIdKey = "blockId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    uint64_t blockId = atol(root[blockIdKey].asString().c_str());
+    bool res = clientAPI.IsBlockInside(loopId, blockId);
+    client->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)res));
+}
+
+void AllocateNewLoopResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t newLoopId = clientAPI.AllocateNewLoop();
+    LoopOp newLoop = clientAPI.GetLoopById(newLoopId);
+    PluginJson json = client->GetJson();
+    json.LoopOpJsonSerialize(newLoop, result);
+    client->ReceiveSendMsg("LoopOpResult", result);
+}
+
+void RedirectFallthroughTargetResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "src":"xxxx",
+    ///     "dest":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string srcKey = "src";
+    uint64_t src = atol(root[srcKey].asString().c_str());
+    std::string destKey = "dest";
+    uint64_t dest = atol(root[destKey].asString().c_str());
+    clientAPI.RedirectFallthroughTarget(src, dest);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void DeleteLoopResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    clientAPI.DeleteLoop(loopId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void AddBlockToLoopResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    ///     "blockId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    std::string blockIdKey = "blockId";
+    uint64_t blockId = atol(root[blockIdKey].asString().c_str());
+    clientAPI.AddBlockToLoop(blockId, loopId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void AddLoopResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    ///     "outerId":"xxxx"
+    ///     "funcId":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    std::string outerIdKey = "outerId";
+    std::string funcIdKey = "funcId";
+    uint64_t loopID = atol(root[loopIdKey].asString().c_str());
+    uint64_t outerID = atol(root[outerIdKey].asString().c_str());
+    uint64_t funcID = atol(root[funcIdKey].asString().c_str());
+    clientAPI.AddLoop(loopID, outerID, funcID);
+    LoopOp irLoop = clientAPI.GetLoopById(loopID);
+    PluginJson json = client->GetJson();
+    json.LoopOpJsonSerialize(irLoop, result);
+    client->ReceiveSendMsg("LoopOpResult", result);
+}
+
+void GetBlocksInLoopResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    vector<uint64_t> blocks = clientAPI.GetBlocksInLoop(loopId);
+    PluginJson json = client->GetJson();
+    json.BlocksJsonSerialize(blocks, result);
+    client->ReceiveSendMsg("IdsResult", result);
+}
+
+void GetHeaderResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    uint64_t blockId = clientAPI.GetHeader(loopId);
+    client->ReceiveSendMsg("IdResult", std::to_string(blockId));
+}
+
+void GetLatchResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    uint64_t blockId = clientAPI.GetLatch(loopId);
+    client->ReceiveSendMsg("IdResult", std::to_string(blockId));
+}
+
+void SetHeaderResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    ///     "blockId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    std::string blockIdKey = "blockId";
+    uint64_t blockId = atol(root[blockIdKey].asString().c_str());
+    clientAPI.SetHeader(loopId, blockId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetLatchResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    ///     "blockId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    std::string blockIdKey = "blockId";
+    uint64_t blockId = atol(root[blockIdKey].asString().c_str());
+    clientAPI.SetLatch(loopId, blockId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void GetLoopExitsResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    vector<std::pair<uint64_t, uint64_t> > edges = clientAPI.GetLoopExits(loopId);
+    PluginJson json = client->GetJson();
+    json.EdgesJsonSerialize(edges, result);
+    client->ReceiveSendMsg("EdgesResult", result);
+}
+
+void GetLoopSingleExitResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "loopId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string loopIdKey = "loopId";
+    uint64_t loopId = atol(root[loopIdKey].asString().c_str());
+    std::pair<uint64_t, uint64_t> edge = clientAPI.GetLoopSingleExit(loopId);
+    PluginJson json = client->GetJson();
+    json.EdgeJsonSerialize(edge, result);
+    client->ReceiveSendMsg("EdgeResult", result);
+}
+
+void GetBlockLoopFatherResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "blockId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string blockIdKey = "blockId";
+    uint64_t blockId = atol(root[blockIdKey].asString().c_str());
+    LoopOp loopFather = clientAPI.GetBlockLoopFather(blockId);
+    PluginJson json = client->GetJson();
+    json.LoopOpJsonSerialize(loopFather, result);
+    client->ReceiveSendMsg("LoopOpResult", result);
+}
+
+void CreateBlockResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "bbaddr":"xxxx",
+    ///     "funcaddr":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t blockAddr = atol(root["bbaddr"].asString().c_str());
+    uint64_t funcAddr = atol(root["funcaddr"].asString().c_str());
+    uint64_t newBBAddr = clientAPI.CreateBlock(funcAddr, blockAddr);
+    client->ReceiveSendMsg("IdResult", std::to_string(newBBAddr));
+}
+
+void DeleteBlockResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "bbaddr":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string funcKey = "funcaddr";
+    std::string BlockIdKey = "bbaddr";
+    uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
+    uint64_t funcaddr = atol(root[funcKey].asString().c_str());
+    clientAPI.DeleteBlock(funcaddr, bbaddr);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetImmediateDominatorResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "dir":"xxxx",
+    ///     "bbaddr":"xxxx",
+    ///     "domiaddr":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string dirIdKey = "dir";
+    uint64_t dir = atol(root[dirIdKey].asString().c_str());
+    std::string BlockIdKey = "bbaddr";
+    uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
+    std::string domiIdKey = "domiaddr";
+    uint64_t domiaddr = atol(root[domiIdKey].asString().c_str());
+    clientAPI.SetImmediateDominator(dir, bbaddr, domiaddr);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void GetImmediateDominatorResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "dir":"xxxx",
+    ///     "bbaddr":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string dirIdKey = "dir";
+    uint64_t dir = atol(root[dirIdKey].asString().c_str());
+    std::string BlockIdKey = "bbaddr";
+    uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
+    uint64_t ret = clientAPI.GetImmediateDominator(dir, bbaddr);
+    client->ReceiveSendMsg("IdResult", std::to_string(ret));
+}
+
+void RecomputeDominatorResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "dir":"xxxx",
+    ///     "bbaddr":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string dirIdKey = "dir";
+    uint64_t dir = atol(root[dirIdKey].asString().c_str());
+    std::string BlockIdKey = "bbaddr";
+    uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
+    uint64_t ret = clientAPI.RecomputeDominator(dir, bbaddr);
+    client->ReceiveSendMsg("IdResult", std::to_string(ret));
+}
+
+void GetPhiOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t id = atol(root[std::to_string(0)].asString().c_str());
+    PhiOp op = clientAPI.GetPhiOp(id);
+    PluginJson json = client->GetJson();
+    Json::Value phiOpResult = json.PhiOpJsonSerialize(op);
+    client->ReceiveSendMsg("OpsResult", phiOpResult.toStyledString());
+}
+
+void GetCallOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t id = atol(root[std::to_string(0)].asString().c_str());
+    CallOp op = clientAPI.GetCallOp(id);
+    PluginJson json = client->GetJson();
+    Json::Value opResult = json.CallOpJsonSerialize(op);
+    client->ReceiveSendMsg("OpsResult", opResult.toStyledString());
+}
+
+void SetLhsInCallOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t callId = atol(root["callId"].asString().c_str());
+    uint64_t lhsId = atol(root["lhsId"].asString().c_str());
+    bool ret = clientAPI.SetLhsInCallOp(callId, lhsId);
+    client->ReceiveSendMsg("BoolResult", std::to_string(ret));
+}
+
+void AddArgInPhiOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t phiId = atol(root["phiId"].asString().c_str());
+    uint64_t argId = atol(root["argId"].asString().c_str());
+    uint64_t predId = atol(root["predId"].asString().c_str());
+    uint64_t succId = atol(root["succId"].asString().c_str());
+    uint32_t ret = clientAPI.AddArgInPhiOp(phiId, argId, predId, succId);
+    client->ReceiveSendMsg("IdResult", std::to_string(ret));
+}
+
+void CreateCallOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t blockId = atol(root["blockId"].asString().c_str());
+    uint64_t funcId = atol(root["funcId"].asString().c_str());
+    vector<uint64_t> argIds;
+    Json::Value argIdsJson = root["argIds"];
+    Json::Value::Members member = argIdsJson.getMemberNames();
+    for (Json::Value::Members::iterator opIter = member.begin(); opIter != member.end(); opIter++) {
+        string key = *opIter;
+        uint64_t id = atol(argIdsJson[key.c_str()].asString().c_str());
+        argIds.push_back(id);
+    }
+    uint64_t ret = clientAPI.CreateCallOp(blockId, funcId, argIds);
+    client->ReceiveSendMsg("IdResult", std::to_string(ret));
+}
+
+void CreateAssignOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t blockId = atol(root["blockId"].asString().c_str());
+    int condCode = atol(root["exprCode"].asString().c_str());
+    vector<uint64_t> argIds;
+    Json::Value argIdsJson = root["argIds"];
+    Json::Value::Members member = argIdsJson.getMemberNames();
+    for (Json::Value::Members::iterator opIter = member.begin(); opIter != member.end(); opIter++) {
+        string key = *opIter;
+        uint64_t id = atol(argIdsJson[key.c_str()].asString().c_str());
+        argIds.push_back(id);
+    }
+    uint64_t ret = clientAPI.CreateAssignOp(blockId, IExprCode(condCode), argIds);
+    client->ReceiveSendMsg("IdResult", std::to_string(ret));
+}
+
+void CreateCondOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t blockId = atol(root["blockId"].asString().c_str());
+    int condCode = atol(root["condCode"].asString().c_str());
+    uint64_t lhsId = atol(root["lhsId"].asString().c_str());
+    uint64_t rhsId = atol(root["rhsId"].asString().c_str());
+    uint64_t tbaddr = atol(root["tbaddr"].asString().c_str());
+    uint64_t fbaddr = atol(root["fbaddr"].asString().c_str());
+    uint64_t ret = clientAPI.CreateCondOp(blockId, IComparisonCode(condCode), lhsId, rhsId, tbaddr, fbaddr);
+    client->ReceiveSendMsg("IdResult", std::to_string(ret));
+}
+
+void CreateFallthroughOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t address = atol(root["address"].asString().c_str());
+    uint64_t destaddr = atol(root["destaddr"].asString().c_str());
+    clientAPI.CreateFallthroughOp(address, destaddr);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void GetResultFromPhiResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t id = atol(root["id"].asString().c_str());
+    mlir::Value ret = clientAPI.GetResultFromPhi(id);
+    PluginJson json = client->GetJson();
+    client->ReceiveSendMsg("ValueResult", json.ValueJsonSerialize(ret).toStyledString());
+}
+
+void CreatePhiOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t argId = atol(root["argId"].asString().c_str());
+    uint64_t blockId = atol(root["blockId"].asString().c_str());
+    PhiOp op = clientAPI.CreatePhiOp(argId, blockId);
+    PluginJson json = client->GetJson();
+    Json::Value opResult = json.PhiOpJsonSerialize(op);
+    client->ReceiveSendMsg("OpsResult", opResult.toStyledString());
+}
+
+void CreateConstOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    PluginJson json = client->GetJson();
+    PluginIR::PluginTypeBase type = json.TypeJsonDeSerialize(root.toStyledString(), context);
+    uint64_t value = atol(root["value"].asString().c_str());
+    mlir::OpBuilder opBuilder = mlir::OpBuilder(&context);
+    mlir::Attribute attr = opBuilder.getI64IntegerAttr(value);
+    mlir::Value ret = clientAPI.CreateConstOp(attr, type);
+    client->ReceiveSendMsg("ValueResult", json.ValueJsonSerialize(ret).toStyledString());
+}
+
+void UpdateSSAResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    bool ret = clientAPI.UpdateSSA();
+    client->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
+}
+
+void GetAllPhiOpInsideBlockResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t bb = atol(root["bbAddr"].asString().c_str());
+    vector<PhiOp> phiOps = clientAPI.GetPhiOpsInsideBlock(bb);
+    PluginJson json = client->GetJson();
+    json.GetPhiOpsJsonSerialize(phiOps, result);
+    client->ReceiveSendMsg("GetPhiOps", result);
+}
+
+void IsDomInfoAvailableResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    bool ret = clientAPI.IsDomInfoAvailable();
+    client->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
+}
+
+void GetCurrentDefFromSSAResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t varId = atol(root["varId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    mlir::Value ret = clientAPI.GetCurrentDefFromSSA(varId);
+    PluginJson json = client->GetJson();
+    client->ReceiveSendMsg("ValueResult", json.ValueJsonSerialize(ret).toStyledString());
+}
+
+void SetCurrentDefInSSAResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t varId = atol(root["varId"].asString().c_str());
+    uint64_t defId = atol(root["defId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    bool ret = clientAPI.SetCurrentDefInSSA(varId, defId);
+    client->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
+}
+
+void CopySSAOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t id = atol(root["id"].asString().c_str());
+    mlir::Value ret = clientAPI.CopySSAOp(id);
+    PluginJson json = client->GetJson();
+    client->ReceiveSendMsg("ValueResult", json.ValueJsonSerialize(ret).toStyledString());
+}
+
+void CreateSSAOpResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    PluginJson json = client->GetJson();
+    PluginIR::PluginTypeBase type = json.TypeJsonDeSerialize(root.toStyledString(), context);
+    mlir::Value ret = clientAPI.CreateSSAOp(type);
+    client->ReceiveSendMsg("ValueResult", json.ValueJsonSerialize(ret).toStyledString());
+}
+
+void CreateNewDefResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t opId = atol(root["opId"].asString().c_str());
+    uint64_t valueId = atol(root["valueId"].asString().c_str());
+    uint64_t defId = atol(root["defId"].asString().c_str());
+    mlir::Value ret = clientAPI.CreateNewDef(valueId, opId, defId);
+    PluginJson json = client->GetJson();
+    client->ReceiveSendMsg("ValueResult", json.ValueJsonSerialize(ret).toStyledString());
+}
+
+void RemoveEdgeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "src":"xxxx",
+    ///     "dest":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string srcKey = "src";
+    uint64_t src = atol(root[srcKey].asString().c_str());
+    std::string destKey = "dest";
+    uint64_t dest = atol(root[destKey].asString().c_str());
+    clientAPI.RemoveEdge(src, dest);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void ConfirmValueResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "valId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string valIdKey = "valId";
+    uint64_t valId = atol(root[valIdKey].asString().c_str());
+    mlir::Value v = clientAPI.GetValue(valId);
+    PluginJson json = client->GetJson();
+    Json::Value valueJson = json.ValueJsonSerialize(v);
+    result = valueJson.toStyledString();
+    client->ReceiveSendMsg("ValueResult", result);
+}
+
+void BuildMemRefResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "baseId":"xxxx",
+    ///     "offsetId":"xxxx",
+    ///     "type":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string baseIdKey = "baseId";
+    std::string offsetIdKey = "offsetId";
+    std::string typeKey = "type";
+    uint64_t baseId = atol(root[baseIdKey].asString().c_str());
+    uint64_t offsetId = atol(root[offsetIdKey].asString().c_str());
+    Json::Value type = root[typeKey];
+    PluginJson json = client->GetJson();
+    PluginIR::PluginTypeBase pType = json.TypeJsonDeSerialize(type.toStyledString(), context);
+    mlir::Value v = clientAPI.BuildMemRef(pType, baseId, offsetId);
+    Json::Value valueJson = json.ValueJsonSerialize(v);
+    result = valueJson.toStyledString();
+    client->ReceiveSendMsg("ValueResult", result);
+}
+
+void DebugValueResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "valId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string valIdKey = "valId";
+    uint64_t valId = atol(root[valIdKey].asString().c_str());
+    clientAPI.DebugValue(valId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("ValueResult", result);
+}
+
+typedef std::function<void(PluginClient*, Json::Value&, string&)> GetResultFunc;
+std::map<string, GetResultFunc> g_getResultFunc = {
+    {"GetAllFunc", GetAllFuncResult},
+    {"GetLocalDecls", GetLocalDeclsResult},
+    {"GetLoopsFromFunc", GetLoopsFromFuncResult},
+    {"GetLoopById", GetLoopByIdResult},
+    {"IsBlockInside", IsBlockInsideResult},
+    {"AllocateNewLoop", AllocateNewLoopResult},
+    {"RedirectFallthroughTarget", RedirectFallthroughTargetResult},
+    {"DeleteLoop", DeleteLoopResult},
+    {"AddBlockToLoop", AddBlockToLoopResult},
+    {"AddLoop", AddLoopResult},
+    {"GetBlocksInLoop", GetBlocksInLoopResult},
+    {"GetHeader", GetHeaderResult},
+    {"GetLatch", GetLatchResult},
+    {"SetHeader", SetHeaderResult},
+    {"SetLatch", SetLatchResult},
+    {"GetLoopExits", GetLoopExitsResult},
+    {"GetLoopSingleExit", GetLoopSingleExitResult},
+    {"GetBlockLoopFather", GetBlockLoopFatherResult},
+    {"CreateBlock", CreateBlockResult},
+    {"DeleteBlock", DeleteBlockResult},
+    {"SetImmediateDominator", SetImmediateDominatorResult},
+    {"GetImmediateDominator", GetImmediateDominatorResult},
+    {"RecomputeDominator", RecomputeDominatorResult},
+    {"GetPhiOp", GetPhiOpResult},
+    {"GetCallOp", GetCallOpResult},
+    {"SetLhsInCallOp", SetLhsInCallOpResult},
+    {"AddArgInPhiOp", AddArgInPhiOpResult},
+    {"CreateCallOp", CreateCallOpResult},
+    {"CreateAssignOp", CreateAssignOpResult},
+    {"CreateCondOp", CreateCondOpResult},
+    {"CreateFallthroughOp", CreateFallthroughOpResult},
+    {"GetResultFromPhi", GetResultFromPhiResult},
+    {"CreatePhiOp", CreatePhiOpResult},
+    {"CreateConstOp", CreateConstOpResult},
+    {"UpdateSSA", UpdateSSAResult},
+    {"GetAllPhiOpInsideBlock", GetAllPhiOpInsideBlockResult},
+    {"IsDomInfoAvailable", IsDomInfoAvailableResult},
+    {"GetCurrentDefFromSSA", GetCurrentDefFromSSAResult},
+    {"SetCurrentDefInSSA", SetCurrentDefInSSAResult},
+    {"CopySSAOp", CopySSAOpResult},
+    {"CreateSSAOp", CreateSSAOpResult},
+    {"CreateNewDef", CreateNewDefResult},
+    {"RemoveEdge", RemoveEdgeResult},
+    {"ConfirmValue", ConfirmValueResult},
+    {"BuildMemRef", BuildMemRefResult},
+    {"DebugValue", DebugValueResult},
+};
+
+void PluginClient::GetIRTransResult(void *gccData, const string& funcName, const string& param)
 {
     string result;
-    
     Json::Value root;
     Json::Reader reader;
     reader.parse(param, root);
     LOGD("%s func:%s,param:%s\n", __func__, funcName.c_str(), param.c_str());
 
-    if (funcName == "GetAllFunc") {
-        // Load our Dialect in this MLIR Context.
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        vector<FunctionOp> allFuncOps = clientAPI.GetAllFunc();
-        FunctionOpJsonSerialize(allFuncOps, result);
-        this->ReceiveSendMsg("FuncOpResult", result);
-    } else if (funcName == "GetLocalDecls") {
-        /// Json格式
-        /// {
-        ///     "funcId":"xxxx"
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string funcIdKey = "funcId";
-        uint64_t funcID = atol(root[funcIdKey].asString().c_str());
-        vector<LocalDeclOp> decls = clientAPI.GetDecls(funcID);
-        LocalDeclsJsonSerialize(decls, result);
-        this->ReceiveSendMsg("LocalDeclOpResult", result);
-    } else if (funcName == "GetLoopsFromFunc") {
-        /// Json格式
-        /// {
-        ///     "funcId":"xxxx"
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string funcIdKey = "funcId";
-        uint64_t funcID = atol(root[funcIdKey].asString().c_str());
-        vector<LoopOp> irLoops = clientAPI.GetLoopsFromFunc(funcID);
-        LoopOpsJsonSerialize(irLoops, result);
-        this->ReceiveSendMsg("LoopOpsResult", result);
-    } else if (funcName == "GetLoopById") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx"
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        LoopOp irLoop = clientAPI.GetLoopById(loopId);
-        LoopOpJsonSerialize(irLoop, result);
-        this->ReceiveSendMsg("LoopOpResult", result);
-    } else if (funcName == "IsBlockInside") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        ///     "blockId":"xxxx"
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        std::string blockIdKey = "blockId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        uint64_t blockId = atol(root[blockIdKey].asString().c_str());
-        bool res = clientAPI.IsBlockInside(loopId, blockId);
-        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)res));
-    } else if (funcName == "AllocateNewLoop") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t newLoopId = clientAPI.AllocateNewLoop();
-        LoopOp newLoop = clientAPI.GetLoopById(newLoopId);
-        LoopOpJsonSerialize(newLoop, result);
-        this->ReceiveSendMsg("LoopOpResult", result);
-    } else if (funcName == "RedirectFallthroughTarget") {
-        /// Json格式
-        /// {
-        ///     "src":"xxxx",
-        ///     "dest":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string srcKey = "src";
-        uint64_t src = atol(root[srcKey].asString().c_str());
-        std::string destKey = "dest";
-        uint64_t dest = atol(root[destKey].asString().c_str());
-        clientAPI.RedirectFallthroughTarget(src, dest);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("VoidResult", result);
-    } else if (funcName == "DeleteLoop") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        clientAPI.DeleteLoop(loopId);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("VoidResult", result);
-    } else if (funcName == "AddBlockToLoop") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        ///     "blockId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        std::string blockIdKey = "blockId";
-        uint64_t blockId = atol(root[blockIdKey].asString().c_str());
-        clientAPI.AddBlockToLoop(blockId, loopId);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("VoidResult", result);
-    } else if (funcName == "AddLoop") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        ///     "outerId":"xxxx"
-        ///     "funcId":"xxxx"
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        std::string outerIdKey = "outerId";
-        std::string funcIdKey = "funcId";
-        uint64_t loopID = atol(root[loopIdKey].asString().c_str());
-        uint64_t outerID = atol(root[outerIdKey].asString().c_str());
-        uint64_t funcID = atol(root[funcIdKey].asString().c_str());
-        clientAPI.AddLoop(loopID, outerID, funcID);
-        LoopOp irLoop = clientAPI.GetLoopById(loopID);
-        LoopOpJsonSerialize(irLoop, result);
-        this->ReceiveSendMsg("LoopOpResult", result);
-    } else if (funcName == "GetBlocksInLoop") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        vector<uint64_t> blocks = clientAPI.GetBlocksInLoop(loopId);
-        BlocksJsonSerialize(blocks, result);
-        this->ReceiveSendMsg("IdsResult", result);
-    } else if (funcName == "GetHeader") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        uint64_t blockId = clientAPI.GetHeader(loopId);
-        this->ReceiveSendMsg("IdResult", std::to_string(blockId));
-    } else if (funcName == "GetLatch") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        uint64_t blockId = clientAPI.GetLatch(loopId);
-        this->ReceiveSendMsg("IdResult", std::to_string(blockId));
-    } else if (funcName == "SetHeader") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        ///     "blockId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        std::string blockIdKey = "blockId";
-        uint64_t blockId = atol(root[blockIdKey].asString().c_str());
-        clientAPI.SetHeader(loopId, blockId);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("VoidResult", result);
-    } else if (funcName == "SetLatch") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        ///     "blockId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        std::string blockIdKey = "blockId";
-        uint64_t blockId = atol(root[blockIdKey].asString().c_str());
-        clientAPI.SetLatch(loopId, blockId);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("VoidResult", result);
-    } else if (funcName == "GetLoopExits") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        vector<pair<uint64_t, uint64_t> > edges = clientAPI.GetLoopExits(loopId);
-        EdgesJsonSerialize(edges, result);
-        this->ReceiveSendMsg("EdgesResult", result);
-    } else if (funcName == "GetLoopSingleExit") {
-        /// Json格式
-        /// {
-        ///     "loopId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string loopIdKey = "loopId";
-        uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-        pair<uint64_t, uint64_t> edge = clientAPI.GetLoopSingleExit(loopId);
-        EdgeJsonSerialize(edge, result);
-        this->ReceiveSendMsg("EdgeResult", result);
-    } else if (funcName == "GetBlockLoopFather") {
-        /// Json格式
-        /// {
-        ///     "blockId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string blockIdKey = "blockId";
-        uint64_t blockId = atol(root[blockIdKey].asString().c_str());
-        LoopOp loopFather = clientAPI.GetBlockLoopFather(blockId);
-        LoopOpJsonSerialize(loopFather, result);
-        this->ReceiveSendMsg("LoopOpResult", result);
-    } else if (funcName == "CreateBlock") {
-        /// Json格式
-        /// {
-        ///     "bbaddr":"xxxx",
-        ///     "funcaddr":"xxxx"
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t blockAddr = atol(root["bbaddr"].asString().c_str());
-        uint64_t funcAddr = atol(root["funcaddr"].asString().c_str());
-        uint64_t newBBAddr = clientAPI.CreateBlock(funcAddr, blockAddr);
-        this->ReceiveSendMsg("IdResult", std::to_string(newBBAddr));
-    } else if (funcName == "DeleteBlock") {
-        /// Json格式
-        /// {
-        ///     "bbaddr":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string funcKey = "funcaddr";
-        std::string BlockIdKey = "bbaddr";
-        uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
-        uint64_t funcaddr = atol(root[funcKey].asString().c_str());
-        clientAPI.DeleteBlock(funcaddr, bbaddr);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("VoidResult", result);
-    } else if (funcName == "SetImmediateDominator") {
-        /// Json格式
-        /// {
-        ///     "dir":"xxxx",
-        ///     "bbaddr":"xxxx",
-        ///     "domiaddr":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string dirIdKey = "dir";
-        uint64_t dir = atol(root[dirIdKey].asString().c_str());
-        std::string BlockIdKey = "bbaddr";
-        uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
-        std::string domiIdKey = "domiaddr";
-        uint64_t domiaddr = atol(root[domiIdKey].asString().c_str());
-        clientAPI.SetImmediateDominator(dir, bbaddr, domiaddr);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("VoidResult", result);
-    } else if (funcName == "GetImmediateDominator") {
-        /// Json格式
-        /// {
-        ///     "dir":"xxxx",
-        ///     "bbaddr":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string dirIdKey = "dir";
-        uint64_t dir = atol(root[dirIdKey].asString().c_str());
-        std::string BlockIdKey = "bbaddr";
-        uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
-        uint64_t ret = clientAPI.GetImmediateDominator(dir, bbaddr);
-        this->ReceiveSendMsg("IdResult", std::to_string(ret));
-    } else if (funcName == "RecomputeDominator") {
-        /// Json格式
-        /// {
-        ///     "dir":"xxxx",
-        ///     "bbaddr":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string dirIdKey = "dir";
-        uint64_t dir = atol(root[dirIdKey].asString().c_str());
-        std::string BlockIdKey = "bbaddr";
-        uint64_t bbaddr = atol(root[BlockIdKey].asString().c_str());
-        uint64_t ret = clientAPI.RecomputeDominator(dir, bbaddr);
-        this->ReceiveSendMsg("IdResult", std::to_string(ret));
-    } else if (funcName == "GetPhiOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t id = atol(root[std::to_string(0)].asString().c_str());
-        PhiOp op = clientAPI.GetPhiOp(id);
-        Json::Value result = PhiOpJsonSerialize(op);
-        this->ReceiveSendMsg("OpsResult", result.toStyledString());
-    } else if (funcName == "GetCallOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t id = atol(root[std::to_string(0)].asString().c_str());
-        CallOp op = clientAPI.GetCallOp(id);
-        Json::Value result = CallOpJsonSerialize(op);
-        this->ReceiveSendMsg("OpsResult", result.toStyledString());
-    } else if (funcName == "SetLhsInCallOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t callId = atol(root["callId"].asString().c_str());
-        uint64_t lhsId = atol(root["lhsId"].asString().c_str());
-        bool ret = clientAPI.SetLhsInCallOp(callId, lhsId);
-        this->ReceiveSendMsg("BoolResult", std::to_string(ret));
-    } else if (funcName == "AddArgInPhiOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t phiId = atol(root["phiId"].asString().c_str());
-        uint64_t argId = atol(root["argId"].asString().c_str());
-        uint64_t predId = atol(root["predId"].asString().c_str());
-        uint64_t succId = atol(root["succId"].asString().c_str());
-        uint32_t ret = clientAPI.AddArgInPhiOp(phiId, argId, predId, succId);
-        this->ReceiveSendMsg("IdResult", std::to_string(ret));
-    } else if (funcName == "CreateCallOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t blockId = atol(root["blockId"].asString().c_str());
-        uint64_t funcId = atol(root["funcId"].asString().c_str());
-        vector<uint64_t> argIds;
-        Json::Value argIdsJson = root["argIds"];
-        Json::Value::Members member = argIdsJson.getMemberNames();
-        for (Json::Value::Members::iterator opIter = member.begin();
-             opIter != member.end(); opIter++) {
-            string key = *opIter;
-            uint64_t id = atol(argIdsJson[key.c_str()].asString().c_str());
-            argIds.push_back(id);
+    if (funcName == "GetInjectDataAddress") {
+        int64_t ptrAddress = (int64_t)gccData;
+        json.IntegerSerialize(ptrAddress, result);
+        this->ReceiveSendMsg("IntegerResult", result);
+    } else if (funcName == "GetIncludeFile") {
+        if (gccData != nullptr) {
+            string includeFile = (char *)gccData;
+            json.StringSerialize(includeFile, result);
+            this->ReceiveSendMsg("StringResult", result);
+        } else {
+            LOGE("%s gcc_data address is NULL!\n", __func__);
         }
-        uint64_t ret = clientAPI.CreateCallOp(blockId, funcId, argIds);
-        this->ReceiveSendMsg("IdResult", std::to_string(ret));
-    } else if (funcName == "CreateAssignOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t blockId = atol(root["blockId"].asString().c_str());
-        int condCode = atol(root["exprCode"].asString().c_str());
-        vector<uint64_t> argIds;
-        Json::Value argIdsJson = root["argIds"];
-        Json::Value::Members member = argIdsJson.getMemberNames();
-        for (Json::Value::Members::iterator opIter = member.begin();
-             opIter != member.end(); opIter++) {
-            string key = *opIter;
-            uint64_t id = atol(argIdsJson[key.c_str()].asString().c_str());
-            argIds.push_back(id);
-        }
-        uint64_t ret = clientAPI.CreateAssignOp(
-                blockId, IExprCode(condCode), argIds);
-        this->ReceiveSendMsg("IdResult", std::to_string(ret));
-    } else if (funcName == "CreateCondOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t blockId = atol(root["blockId"].asString().c_str());
-        int condCode = atol(root["condCode"].asString().c_str());
-        uint64_t lhsId = atol(root["lhsId"].asString().c_str());
-        uint64_t rhsId = atol(root["rhsId"].asString().c_str());
-        uint64_t tbaddr = atol(root["tbaddr"].asString().c_str());
-        uint64_t fbaddr = atol(root["fbaddr"].asString().c_str());
-        uint64_t ret = clientAPI.CreateCondOp(blockId, IComparisonCode(condCode),
-                                              lhsId, rhsId, tbaddr, fbaddr);
-        this->ReceiveSendMsg("IdResult", std::to_string(ret));
-    } else if (funcName == "CreateFallthroughOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t address = atol(root["address"].asString().c_str());
-        uint64_t destaddr = atol(root["destaddr"].asString().c_str());
-        clientAPI.CreateFallthroughOp(address, destaddr);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("VoidResult", result);
-    } else if (funcName == "GetResultFromPhi") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t id = atol(root["id"].asString().c_str());
-        mlir::Value ret = clientAPI.GetResultFromPhi(id);
-        this->ReceiveSendMsg("ValueResult",
-                             ValueJsonSerialize(ret).toStyledString());
-    } else if (funcName == "CreatePhiOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t argId = atol(root["argId"].asString().c_str());
-        uint64_t blockId = atol(root["blockId"].asString().c_str());
-        PhiOp op = clientAPI.CreatePhiOp(argId, blockId);
-        Json::Value result = PhiOpJsonSerialize(op);
-        this->ReceiveSendMsg("OpsResult", result.toStyledString());
-    } else if (funcName == "CreateConstOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        PluginIR::PluginTypeBase type = TypeJsonDeSerialize(root.toStyledString(), context);
-        uint64_t value = atol(root["value"].asString().c_str());
-        mlir::OpBuilder opBuilder = mlir::OpBuilder(&context);
-        mlir::Attribute attr = opBuilder.getI64IntegerAttr(value);
-        mlir::Value ret = clientAPI.CreateConstOp(attr, type);
-        this->ReceiveSendMsg("ValueResult",
-                             ValueJsonSerialize(ret).toStyledString());
-    } else if (funcName == "UpdateSSA") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        bool ret = clientAPI.UpdateSSA();
-        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
-    } else if (funcName == "GetAllPhiOpInsideBlock") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t bb = atol(root["bbAddr"].asString().c_str());
-        vector<PhiOp> phiOps = clientAPI.GetPhiOpsInsideBlock(bb);
-        GetPhiOpsJsonSerialize(phiOps, result);
-        this->ReceiveSendMsg("GetPhiOps", result);
-    } else if (funcName == "IsDomInfoAvailable") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        bool ret = clientAPI.IsDomInfoAvailable();
-        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
-    } else if (funcName == "GetCurrentDefFromSSA") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        uint64_t varId = atol(root["varId"].asString().c_str());
-        PluginAPI::PluginClientAPI clientAPI(context);
-        mlir::Value ret = clientAPI.GetCurrentDefFromSSA(varId);
-        this->ReceiveSendMsg("ValueResult",
-                             ValueJsonSerialize(ret).toStyledString());
-    } else if (funcName == "SetCurrentDefInSSA") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        uint64_t varId = atol(root["varId"].asString().c_str());
-        uint64_t defId = atol(root["defId"].asString().c_str());
-        PluginAPI::PluginClientAPI clientAPI(context);
-        bool ret = clientAPI.SetCurrentDefInSSA(varId, defId);
-        this->ReceiveSendMsg("BoolResult", std::to_string((uint64_t)ret));
-    } else if (funcName == "CopySSAOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t id = atol(root["id"].asString().c_str());
-        mlir::Value ret = clientAPI.CopySSAOp(id);
-        this->ReceiveSendMsg("ValueResult",
-                             ValueJsonSerialize(ret).toStyledString());
-    } else if (funcName == "CreateSSAOp") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        PluginIR::PluginTypeBase type = TypeJsonDeSerialize(root.toStyledString(), context);
-        mlir::Value ret = clientAPI.CreateSSAOp(type);
-        this->ReceiveSendMsg("ValueResult",
-                             ValueJsonSerialize(ret).toStyledString());
-    } else if (funcName == "CreateNewDef") {
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        uint64_t opId = atol(root["opId"].asString().c_str());
-        uint64_t valueId = atol(root["valueId"].asString().c_str());
-        uint64_t defId = atol(root["defId"].asString().c_str());
-        mlir::Value ret = clientAPI.CreateNewDef(valueId, opId, defId);
-        this->ReceiveSendMsg("ValueResult",
-                             ValueJsonSerialize(ret).toStyledString());
-    } else if (funcName == "RemoveEdge") {
-        /// Json格式
-        /// {
-        ///     "src":"xxxx",
-        ///     "dest":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string srcKey = "src";
-        uint64_t src = atol(root[srcKey].asString().c_str());
-        std::string destKey = "dest";
-        uint64_t dest = atol(root[destKey].asString().c_str());
-        clientAPI.RemoveEdge(src, dest);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("VoidResult", result);
-    } else if (funcName == "ConfirmValue") {
-        /// Json格式
-        /// {
-        ///     "valId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string valIdKey = "valId";
-        uint64_t valId = atol(root[valIdKey].asString().c_str());
-        mlir::Value v = clientAPI.GetValue(valId);
-        Json::Value valueJson = ValueJsonSerialize(v);
-        result = valueJson.toStyledString();
-        this->ReceiveSendMsg("ValueResult", result);
-    } else if (funcName == "BuildMemRef") {
-        /// Json格式
-        /// {
-        ///     "baseId":"xxxx",
-        ///     "offsetId":"xxxx",
-        ///     "type":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string baseIdKey = "baseId";
-        std::string offsetIdKey = "offsetId";
-        std::string typeKey = "type";
-        uint64_t baseId = atol(root[baseIdKey].asString().c_str());
-        uint64_t offsetId = atol(root[offsetIdKey].asString().c_str());
-        Json::Value type = root[typeKey];
-        PluginIR::PluginTypeBase pType = TypeJsonDeSerialize(type.toStyledString(), context);
-        mlir::Value v = clientAPI.BuildMemRef(pType, baseId, offsetId);
-        Json::Value valueJson = ValueJsonSerialize(v);
-        result = valueJson.toStyledString();
-        this->ReceiveSendMsg("ValueResult", result);
-    } else if (funcName == "DebugValue") {
-        /// Json格式
-        /// {
-        ///     "valId":"xxxx",
-        /// }
-        mlir::MLIRContext context;
-        context.getOrLoadDialect<PluginDialect>();
-        PluginAPI::PluginClientAPI clientAPI(context);
-        std::string valIdKey = "valId";
-        uint64_t valId = atol(root[valIdKey].asString().c_str());
-        clientAPI.DebugValue(valId);
-        NopJsonSerialize(result);
-        this->ReceiveSendMsg("ValueResult", result);
     } else {
-        LOGW("function: %s not found!\n", funcName.c_str());
+        auto it = g_getResultFunc.find(funcName);
+        if (it != g_getResultFunc.end()) {
+            it->second(this, root, result);
+        } else {
+            string key = "";
+            GetGccData(funcName, param, key, result);
+            if (key != "") {
+                this->ReceiveSendMsg(key, result);
+            }
+        }
     }
 
     LOGD("IR function: %s\n", funcName.c_str());
@@ -1068,147 +909,12 @@ void PluginClient::IRTransBegin(const string& funcName, const string& param)
     this->ReceiveSendMsg(funcName, "done");
 }
 
-int PluginClient::GetInitInfo(string& serverPath, string& shaPath, int& timeout)
-{
-    Json::Value root;
-    Json::Reader reader;
-    std::ifstream ifs;
-    string configFilePath;
-    string serverDir;
-    if (serverPath == "") {
-        configFilePath = "/usr/local/bin/pin-gcc-client.json"; // server路径为空，配置文件默认路径
-        LOGW("input serverPath is NULL, read default:%s\n", configFilePath.c_str());
-    } else {
-        int index = serverPath.find_last_of("/");
-        serverDir = serverPath.substr(0, index);
-        configFilePath = serverDir + "/pin-gcc-client.json"; // 配置文件和server在同一目录
-    }
-
-    ifs.open(configFilePath.c_str());
-    if (!ifs) {
-        shaPath = serverDir + "/libpin_user.sha256"; // sha256文件默认和server在同一目录
-        LOGW("open %s fail! use default sha256file:%s\n", configFilePath.c_str(), shaPath.c_str());
-        return -1;
-    }
-    reader.parse(ifs, root);
-    ifs.close();
-
-    if (serverPath == "") {
-        if (!root["path"].isString()) {
-            LOGE("path in config.json is not string\n");
-            return 0;
-        }
-        serverPath = root["path"].asString();
-        int index = serverPath.find_last_of("/");
-        serverDir = serverPath.substr(0, index);
-    }
-    int timeoutJson = root["timeout"].asInt();
-    if ((timeoutJson >= 50) && (timeoutJson <= 5000)) { // 不在50~5000ms范围内，使用默认值
-        timeout = timeoutJson;
-        LOGI("the timeout is:%d\n", timeout);
-    } else {
-        LOGW("timeout read from %s is:%d,should be 50~5000,use default:%d\n",
-            configFilePath.c_str(), timeoutJson, timeout);
-    }
-    shaPath = root["sha256file"].asString();
-    int ret = access(shaPath.c_str(), F_OK);
-    if ((shaPath == "") || (ret != 0)) {
-        shaPath = serverDir + "/libpin_user.sha256"; // sha256文件默认和server在同一目录
-        LOGW("sha256 file not found,use default:%s\n", shaPath.c_str());
-    }
-    return 0;
-}
-
-void PluginClient::GetArg(struct plugin_name_args *pluginInfo, string& serverPath,
-    string& arg, LogPriority& logLevel)
-{
-    Json::Value root;
-    map<string, string> compileArgs;
-    for (int i = 0; i < pluginInfo->argc; i++) {
-        string key = pluginInfo->argv[i].key;
-        if (key == "server_path") {
-            serverPath = pluginInfo->argv[i].value;
-        } else if (key == "log_level") {
-            logLevel = (LogPriority)atoi(pluginInfo->argv[i].value);
-            SetLogPriority(logLevel);
-        } else {
-            string value = pluginInfo->argv[i].value;
-            compileArgs[key] = value;
-            root[key] = value;
-        }
-    }
-    arg = root.toStyledString();
-    for (auto it = compileArgs.begin(); it != compileArgs.end(); it++) {
-        CheckSafeCompileFlag(it->first, it->second);
-    }
-}
-
-int PluginClient::CheckSHA256(const string& shaPath)
-{
-    if (shaPath == "") {
-        LOGE("sha256file Path is NULL,check:%s\n", shaPath.c_str());
-        return -1;
-    }
-    int index = shaPath.find_last_of("/");
-    string dir = shaPath.substr(0, index);
-    string filename = shaPath.substr(index+1, -1);
-
-    string cmd = "cd " + dir + " && " + "sha256sum -c " + filename + " --quiet";
-    int ret = system(cmd.c_str());
-    return ret;
-}
-
-void PluginClient::CheckSafeCompileFlag(const string& argName, const string& param)
-{
-    vector<string> safeCompileFlags = {
-        "-z noexecstack",
-        "-fno-stack-protector",
-        "-fstack-protector-all",
-        "-D_FORTIFY_SOURCE",
-        "-fPic",
-        "-fPIE",
-        "-fstack-protector-strong",
-        "-fvisibility",
-        "-ftrapv",
-        "-fstack-check",
-    };
-
-    for (auto& v : safeCompileFlags) {
-        if (param.find(v) != string::npos) {
-            LOGW("%s:%s have safe compile parameter:%s !!!\n", argName.c_str(), param.c_str(), v.c_str());
-        }
-    }
-}
-
-bool PluginClient::DeletePortFromLockFile(unsigned short port)
-{
-    int portFileFd = open(g_portFilePath, O_RDWR);
-    if (portFileFd == -1) {
-        LOGE("%s open file %s fail\n", __func__, g_portFilePath);
-        return false;
-    }
-    LOGI("delete port:%d\n", port);
-
-    flock(portFileFd, LOCK_EX);
-    string grpcPorts = "";
-    ReadPortsFromLockFile(portFileFd, grpcPorts);
-
-    string portStr = std::to_string(port) + "\n";
-    string::size_type pos = grpcPorts.find(portStr);
-    if (pos == string::npos) {
-        close(portFileFd);
-        return true;
-    }
-    grpcPorts = grpcPorts.erase(pos, portStr.size());
-
-    ftruncate(portFileFd, 0);
-    lseek(portFileFd, 0, SEEK_SET);
-    write(portFileFd, grpcPorts.c_str(), grpcPorts.size());
-    close(portFileFd);
-
-    return true;
-}
-
+// attribute:value说明
+// start:ok 启动成功
+// stop:ok  关闭成功
+// userFunc:execution completed 函数执行完毕，执行下一个函数
+// injectPoit:xxxx 注册点，xxxx是server传递过来的唯一值，gcc回调时，将xxxx返回server解析，执行对应的函数
+// xxxx:yyyy 此类都认为是api函数，xxxx为函数名，yyyy为形参
 void PluginClient::ReceiveSendMsg(const string& attribute, const string& value)
 {
     ClientContext context;
@@ -1219,31 +925,29 @@ void PluginClient::ReceiveSendMsg(const string& attribute, const string& value)
     clientMsg.set_value(value);
     stream->Write(clientMsg);
     stream->WritesDone();
-    TimerStart(timeout);
-    if (g_grpcChannel->GetState(true) != GRPC_CHANNEL_READY) {
+    TimerStart(input.GetTimeout());
+
+    if (grpcChannel->GetState(true) != GRPC_CHANNEL_READY) {
         LOGW("client pid:%d grpc channel not ready!\n", getpid());
         return;
     }
     ServerMsg serverMsg;
     while (stream->Read(&serverMsg)) {
-        TimerStart(0);
-        if (serverMsg.attribute() != "injectPoint") { // 日志不记录注册的函数名信息
+        TimerStart(0); // 定时值0，关闭定时器
+        if (serverMsg.attribute() != grpckey[INJECT]) { // 日志不记录注册的函数名信息
             LOGD("rec from server:%s,%s\n", serverMsg.attribute().c_str(), serverMsg.value().c_str());
         }
-        if ((serverMsg.attribute() == "start") && (serverMsg.value() == "ok")) {
+        if ((serverMsg.attribute() == grpckey[START]) && (serverMsg.value() == grpcValue[START_VALUE])) {
             LOGI("server has been started!\n");
-            if (!DeletePortFromLockFile(GetGrpcPort())) {
-                LOGE("DeletePortFromLockFile fail\n");
-            }
-        } else if ((serverMsg.attribute() == "stop") && (serverMsg.value() == "ok")) {
+            DeleteGrpcPort();
+        } else if ((serverMsg.attribute() == grpckey[STOP]) && (serverMsg.value() == grpcValue[STOP_VALUE])) {
             LOGI("server has been closed!\n");
             Status status = stream->Finish();
             if (!status.ok()) {
-                LOGE("error code:%d,%s\n", status.error_code(), status.error_message().c_str());
-                LOGE("RPC failed\n");
+                LOGE("RPC failed,error code:%d,%s\n", status.error_code(), status.error_message().c_str());
             }
             CloseLog();
-        } else if ((serverMsg.attribute() == "userFunc") && (serverMsg.value() == "execution completed")) {
+        } else if ((serverMsg.attribute() == grpckey[USERFUNC]) && (serverMsg.value() == grpcValue[USERFUNC_VALUE])) {
             SetUserFuncState(STATE_END); // server已接收到对应函数所需数据
         } else {
             ServerMsgProc(serverMsg.attribute(), serverMsg.value());
@@ -1258,9 +962,10 @@ int PluginClient::AddRegisteredUserFunc(const string& value)
     string name = value.substr(index + 1, -1);
     InjectPoint inject = (InjectPoint)atoi(point.c_str());
     if (inject >= HANDLE_MAX) {
+        LOGE("AddRegisteredUserFunc %s err!\n", value.c_str());
         return -1;
     }
-    
+
     registeredUserFunc[inject].push_back(name);
     return 0;
 }
@@ -1270,63 +975,75 @@ ManagerSetupData GetPassInfoData(const string& data)
     ManagerSetupData setupData;
     Json::Value root;
     Json::Reader reader;
-    reader.parse(data, root);
+    string jsonData = data.substr(data.find_first_of(":") + 1, -1);
+    reader.parse(jsonData, root);
     
-    setupData.refPassName = (RefPassName)root["refPassName"].asInt();
-    setupData.passNum = root["passNum"].asInt();
-    setupData.passPosition = (PassPosition)root["passPosition"].asInt();
+    if (root[passValue[PASS_NAME]].isInt()) {
+        setupData.refPassName = (RefPassName)root[passValue[PASS_NAME]].asInt();
+    }
+    if (root[passValue[PASS_NUM]].isInt()) {
+        setupData.passNum = root[passValue[PASS_NUM]].asInt();
+    }
+    if (root[passValue[PASS_POSITION]].isInt()) {
+        setupData.passPosition = (PassPosition)root[passValue[PASS_POSITION]].asInt();
+    }
+
     return setupData;
 }
 
+// attribute不为"injectPoint"时,attribute为"funcName",value为函数参数
+// attribute为"injectPoint"时, value为"inject:funcName+函数指针地址"
 void PluginClient::ServerMsgProc(const string& attribute, const string& value)
 {
-    std::shared_ptr<PluginClient> client = PluginClient::GetInstance();
-    if (attribute == "injectPoint") {
-        if (value == "finished") {
-            string pluginName = client->GetPluginName();
-            InjectPoint inject;
-            map<InjectPoint, vector<string>> userFuncs = client->GetRegisteredUserFunc();
-            for (auto it = userFuncs.begin(); it != userFuncs.end(); it++) {
-                inject = it->first;
-                if (inject == HANDLE_MANAGER_SETUP) {
-                    string data = it->second.front();
-                    ManagerSetupData setupData = GetPassInfoData(data);
-                    RegisterPassManagerSetup(inject, setupData, pluginName);
-                } else {
-                    RegisterPluginEvent(inject, pluginName); // 注册event
+    if (attribute != grpckey[INJECT]) {
+        SetPluginAPIParam(value);
+        SetPluginAPIName(attribute);
+        SetUserFuncState(STATE_BEGIN);
+        return;
+    }
+
+    if (value == grpcValue[FINISH_VALUE]) {
+        string pluginName = GetPluginName();
+        InjectPoint inject;
+        map<InjectPoint, vector<string>> userFuncs = GetRegisteredUserFunc();
+        for (auto it = userFuncs.begin(); it != userFuncs.end(); it++) {
+            inject = it->first; // first为注册点
+            if (inject == HANDLE_MANAGER_SETUP) {
+                for (unsigned int i = 0; i < it->second.size(); i++) {
+                    ManagerSetupData setupData = GetPassInfoData(it->second[i]);
+                    RegisterPassManagerSetup(i, setupData, pluginName);
                 }
+            } else {
+                RegisterPluginEvent(inject, pluginName); // 注册event
             }
-            client->SetInjectFlag(true);
-        } else {
-            client->AddRegisteredUserFunc(value);
         }
+        SetInjectFlag(true);
     } else {
-        client->SetPluginAPIParam(value);
-        client->SetPluginAPIName(attribute);
-        client->SetUserFuncState(STATE_BEGIN);
+        AddRegisteredUserFunc(value);
     }
 }
 
 void TimeoutFunc(union sigval sig)
 {
     LOGW("client pid:%d timeout!\n", getpid());
-    g_plugin->SetUserFuncState(STATE_TIMEOUT);
+    PluginClient::GetInstance()->SetUserFuncState(STATE_TIMEOUT);
 }
 
 void PluginClient::TimerStart(int interval)
 {
-    int msTons = 1000000; // ms转ns倍数
-    int msTos = 1000; // s转ms倍数
+    const int msTons = 1000000; // ms转ns倍数
+    const int msTos = 1000; // s转ms倍数
     struct itimerspec time_value;
     time_value.it_value.tv_sec = (interval / msTos);
     time_value.it_value.tv_nsec = (interval % msTos) * msTons;
     time_value.it_interval.tv_sec = 0;
     time_value.it_interval.tv_nsec = 0;
-    
-    timer_settime(timerId, 0, &time_value, NULL);
+
+    const int timeFlag = 0; // 0 表示希望timer首次到期时的时间与启动timer的时间间隔
+    timer_settime(timerId, timeFlag, &time_value, NULL);
 }
 
-bool PluginClient::TimerInit(void)
+bool PluginClient::TimerInit(clockid_t id)
 {
     struct sigevent evp;
     int sival = 124; // 传递整型参数，可以自定义
@@ -1336,130 +1053,122 @@ bool PluginClient::TimerInit(void)
     evp.sigev_notify = SIGEV_THREAD;
     evp.sigev_notify_function = TimeoutFunc;
     
-    if (timer_create(CLOCK_REALTIME, &evp, &timerId) == -1) {
+    if (timer_create(id, &evp, &timerId) == -1) {
         LOGE("timer create fail\n");
         return false;
     }
     return true;
 }
 
-int PluginClient::OpenLockFile(const char *path)
+static bool WaitServer(const string& port)
 {
-    int portFileFd = -1;
-    if (access(path, F_OK) == -1) {
-        mode_t mask = umask(0);
-        mode_t mode = 0666;
-        portFileFd = open(path, O_CREAT | O_RDWR, mode);
-        umask(mask);
-    } else {
-        portFileFd = open(path, O_RDWR);
-    }
-
-    if (portFileFd == -1) {
-        LOGE("open file %s fail\n", path);
-    }
-    return portFileFd;
-}
-
-void PluginClient::ReadPortsFromLockFile(int fd, string& grpcPorts)
-{
-    int fileLen = lseek(fd, 0, SEEK_END);
-    lseek(fd, 0, SEEK_SET);
-    char *buf = new char[fileLen + 1];
-    read(fd, buf, fileLen);
-    buf[fileLen] = '\0';
-    grpcPorts = buf;
-    delete[] buf;
-}
-
-unsigned short PluginClient::FindUnusedPort(void)
-{
-    unsigned short basePort = 40000; // grpc通信端口号从40000开始
-    unsigned short foundPort = 0; // 可以使用的端口号
-    struct sockaddr_in serverAddr;
-    memset(&serverAddr, 0, sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = inet_addr("0.0.0.0");
-
-    int portFileFd = OpenLockFile(g_portFilePath);
-    if (portFileFd == -1) {
-        return 0;
-    }
-
-    flock(portFileFd, LOCK_EX);
-    string grpcPorts = "";
-    ReadPortsFromLockFile(portFileFd, grpcPorts);
-
-    while (++basePort < UINT16_MAX) {
-        int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        serverAddr.sin_port = htons(basePort);
-        int ret = connect(sock, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
-        if (sock != -1) {
-            close(sock);
-        }
-        if ((ret == -1) && (errno == ECONNREFUSED)) {
-            string strPort = std::to_string(basePort) + "\n";
-            if (grpcPorts.find(strPort) == grpcPorts.npos) {
-                foundPort = basePort;
-                LOGI("found port:%d\n", foundPort);
-                lseek(portFileFd, 0, SEEK_END);
-                write(portFileFd, strPort.c_str(), strPort.size());
-                break;
-            }
+    const int delay = 50;
+    const int cnt = 4000;
+    mode_t mask = umask(0);
+    mode_t mode = 0666; // 权限是rwrwrw，跨进程时，其他用户也要可以访问
+    string semFile = "wait_server_startup" + port;
+    sem_t *sem = sem_open(semFile.c_str(), O_CREAT, mode, 0);
+    umask(mask);
+    int i = 0;
+    for (; i < cnt; i++) {
+        if (sem_trywait(sem) == 0) {
+            break;
+        } else {
+            usleep(delay);
         }
     }
-
-    if (basePort == UINT16_MAX) {
-        ftruncate(portFileFd, 0);
-        lseek(portFileFd, 0, SEEK_SET);
+    sem_close(sem);
+    sem_unlink(semFile.c_str());
+    if (i >= cnt) {
+        return false;
     }
-
-    close(portFileFd); // 关闭文件fd会同时释放文件锁
-    return foundPort;
+    return true;
 }
 
-int ServerStart(int timeout, const string& serverPath, pid_t& pid, string& port, const LogPriority logLevel)
+int PluginClient::ServerStart(pid_t& pid)
 {
-    unsigned short portNum = PluginClient::FindUnusedPort();
-    if (portNum == 0) {
+    if (!grpcPort.FindUnusedPort()) {
         LOGE("cannot find port for grpc,port 40001-65535 all used!\n");
         return -1;
     }
+
     int ret = 0;
-    port = std::to_string(portNum);
+    unsigned short portNum = grpcPort.GetPort();
+    string port = std::to_string(portNum);
     pid = vfork();
     if (pid == 0) {
         LOGI("start plugin server!\n");
-        string paramTimeout = std::to_string(timeout);
-        if (execl(serverPath.c_str(), paramTimeout.c_str(), port.c_str(),
-            std::to_string(logLevel).c_str(), NULL) == -1) {
-            PluginClient::DeletePortFromLockFile(portNum);
+        string serverPath = input.GetServerPath();
+        if (execl(serverPath.c_str(), port.c_str(), std::to_string(input.GetLogLevel()).c_str(), NULL) == -1) {
+            DeleteGrpcPort();
             LOGE("server start fail! please check serverPath:%s\n", serverPath.c_str());
             ret = -1;
             _exit(0);
         }
     }
-    int delay = 500000; // 500ms
-    usleep(delay); // wait server start
 
+    if (!WaitServer(port)) {
+        ret = -1;
+    }
     return ret;
 }
 
-int ClientStart(int timeout, const string& arg, const string& pluginName, const string& port)
+int PluginClient::ClientStart()
 {
-    string serverPort = "localhost:" + port;
-    g_grpcChannel = grpc::CreateChannel(serverPort, grpc::InsecureChannelCredentials());
-    g_plugin = std::make_shared<PluginClient>(g_grpcChannel);
-    g_plugin->SetInjectFlag(false);
-    g_plugin->SetTimeout(timeout);
-    g_plugin->SetUserFuncState(STATE_WAIT_BEGIN);
-
-    if (!g_plugin->TimerInit()) {
-        return 0;
+    setenv("no_grpc_proxy", "localhost", 1); // 关闭localhost的代理,因为server和client运行在同一个机器上，需要通过localhost建立连接
+    string serverPort = "localhost:" + std::to_string(grpcPort.GetPort());
+    grpcChannel = grpc::CreateChannel(serverPort, grpc::InsecureChannelCredentials());
+    serviceStub = PluginService::NewStub(grpcChannel);
+    SetInjectFlag(false);
+    SetUserFuncState(STATE_WAIT_BEGIN);
+    SetStartFlag(true);
+    if (!TimerInit(CLOCK_REALTIME)) {
+        return -1;
     }
-    unsigned short grpcPort = (unsigned short)atoi(port.c_str());
-    g_plugin->SetGrpcPort(grpcPort);
-    g_plugin->ReceiveSendMsg("start", arg);
+    ReceiveSendMsg(grpckey[START], input.GetArgs());
     return 0;
+}
+
+void PluginClient::Init(struct plugin_name_args *pluginInfo, const string& pluginName, pid_t& serverPid)
+{
+    SetPluginName(pluginName);
+    SetStartFlag(false);
+
+    // inputCheck模块初始化,并对输入参数进行检查
+    input.GetInputArgs(pluginInfo);
+    if (input.GetInitInfo() != 0) {
+        LOGD("read default info from pin-gcc-client.json fail! use the default timeout=%dms\n", input.GetTimeout());
+    }
+    if (input.GetServerPath() == "") {
+        LOGE("server path is NULL!\n");
+        return;
+    }
+    if (input.CheckSHA256() != 0) {
+        LOGE("sha256 check sha256 file:%s fail!\n", input.GetShaPath().c_str());
+        return;
+    } else {
+        LOGI("sha256 check success!\n");
+    }
+
+    // 查找未使用的端口号，并启动server和client
+    if (ServerStart(serverPid) != 0) {
+        DeleteGrpcPort();
+        return;
+    }
+    if (ClientStart() != 0) {
+        return;
+    }
+
+    // 等待用户完成注入点的注册或者server异常退出后，再接着执行gcc编译
+    int status;
+    while (1) {
+        if ((GetInjectFlag()) || (GetUserFuncState() == STATE_TIMEOUT)) {
+            break;
+        }
+        if (serverPid == waitpid(-1, &status, WNOHANG)) {
+            DeleteGrpcPort();
+            break;
+        }
+    }
 }
 } // namespace PinClient

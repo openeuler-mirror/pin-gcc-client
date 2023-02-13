@@ -43,6 +43,12 @@ public:
     BasicPluginOpsAPI() = default;
     virtual ~BasicPluginOpsAPI() = default;
 
+    virtual string GetDeclSourceFile(uint64_t gccDataAddr) = 0;
+    virtual string VariableName(int64_t gccDataAddr) = 0;
+    virtual string FuncName(int64_t gccDataAddr) = 0;
+    virtual int GetDeclSourceLine(uint64_t gccDataAddr) = 0;
+    virtual int GetDeclSourceColumn(uint64_t gccDataAddr) = 0;
+
     virtual uint64_t CreateBlock(uint64_t, uint64_t) = 0;
     virtual void DeleteBlock(uint64_t, uint64_t) = 0;
     virtual void SetImmediateDominator(uint64_t, uint64_t, uint64_t) = 0;

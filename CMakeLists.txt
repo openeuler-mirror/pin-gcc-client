@@ -89,9 +89,12 @@ add_subdirectory(include)
 add_subdirectory(lib)
 
 add_library(pin_gcc_client SHARED 
+    "lib/gccPlugin/gccPlugin.cpp"
     "lib/PluginClient/PluginLog.cpp"
+    "lib/PluginClient/PluginJson.cpp"
+    "lib/PluginClient/PluginInputCheck.cpp"
+    "lib/PluginClient/PluginGrpcPort.cpp"
     "lib/PluginClient/PluginClient.cpp"
-    "lib/IRTrans/IRTransPlugin.cpp"
 )
 
 target_link_libraries(pin_gcc_client

@@ -1,0 +1,6 @@
+/* Definition of GRPC key name */
+
+GRPC_KEY(START, "start")
+GRPC_KEY(STOP, "stop")
+GRPC_KEY(USERFUNC, "userFunc")
+GRPC_KEY(INJECT, "injectPoint")

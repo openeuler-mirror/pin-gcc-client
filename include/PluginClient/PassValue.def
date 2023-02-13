@@ -1,0 +1,5 @@
+/* Definition of PASS value */
+
+PASS_VALUE(PASS_NAME, "refPassName")
+PASS_VALUE(PASS_NUM, "passNum")
+PASS_VALUE(PASS_POSITION, "passPosition")

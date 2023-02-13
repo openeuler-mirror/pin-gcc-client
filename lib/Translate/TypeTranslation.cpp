@@ -49,7 +49,7 @@
 using namespace mlir;
 
 namespace PluginIR {
-namespace detail {
+namespace Detail {
 /* Support for translating Plugin IR types to MLIR Plugin dialect types. */
 class TypeFromPluginIRTranslatorImpl {
 public:
@@ -82,7 +82,8 @@ private:
     PluginTypeBase translatePrimitiveType (tree type)
     {
         if (TREE_CODE(type) == INTEGER_TYPE)
-            return PluginIntegerType::get(&context, getBitWidth(type), isUnsigned(type) ? PluginIntegerType::Unsigned : PluginIntegerType::Signed);
+            return PluginIntegerType::get(&context, getBitWidth(type),
+                isUnsigned(type) ? PluginIntegerType::Unsigned : PluginIntegerType::Signed);
         if (TREE_CODE(type) == REAL_TYPE)
             return PluginFloatType::get(&context, getBitWidth(type));
         if (TREE_CODE(type) == BOOLEAN_TYPE)
@@ -90,7 +91,8 @@ private:
         if (TREE_CODE(type) == VOID_TYPE)
             return PluginVoidType::get(&context);
         if (TREE_CODE(type) == POINTER_TYPE)
-            return PluginPointerType::get(&context, translatePrimitiveType(TREE_TYPE(type)), TYPE_READONLY(TREE_TYPE(type)) ? 1 : 0);
+            return PluginPointerType::get(&context, translatePrimitiveType(TREE_TYPE(type)),
+                TYPE_READONLY(TREE_TYPE(type)) ? 1 : 0);
         return PluginUndefType::get(&context);
     }
 
@@ -111,19 +113,20 @@ public:
     }
 
 private:
-    unsigned getBitWidth (PluginIntegerType type)
+    unsigned getBitWidth(PluginIntegerType type)
     {
         return type.getWidth();
     }
 
-    bool isUnsigned (PluginIntegerType type)
+    bool isUnsigned(PluginIntegerType type)
     {
-        if(type.isUnsigned())
+        if (type.isUnsigned()) {
             return true;
+        }
         return false;
     }
 
-    tree translatePrimitiveType (PluginTypeBase type)
+    tree translatePrimitiveType(PluginTypeBase type)
     {
         if (auto Ty = type.dyn_cast<PluginIntegerType>()) {
             if (isUnsigned(Ty)) {
@@ -178,14 +181,13 @@ private:
         }
         return NULL;
     }
-
 };
 
-} // namespace detail
+} // namespace Detail
 } // namespace PluginIR
 
 PluginIR::TypeFromPluginIRTranslator::TypeFromPluginIRTranslator(mlir::MLIRContext &context)
-    : impl(new detail::TypeFromPluginIRTranslatorImpl(context)) {}
+    : impl(new Detail::TypeFromPluginIRTranslatorImpl(context)) {}
 
 PluginIR::TypeFromPluginIRTranslator::~TypeFromPluginIRTranslator() {}
 
@@ -206,7 +208,7 @@ uint64_t PluginIR::TypeFromPluginIRTranslator::getBitWidth(PluginTypeBase type)
 
 
 PluginIR::TypeToPluginIRTranslator::TypeToPluginIRTranslator()
-    : impl(new detail::TypeToPluginIRTranslatorImpl()) {}
+    : impl(new Detail::TypeToPluginIRTranslatorImpl()) {}
 
 PluginIR::TypeToPluginIRTranslator::~TypeToPluginIRTranslator() {}
 

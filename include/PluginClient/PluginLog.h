@@ -18,14 +18,14 @@
    Create: 2022-08-18
    Description:
     This file contains the declaration of the Plugin_Log class.
+    主要完成功能：提供LOGE、LOGW、LOGI、LOGD四个log保存接口，并提供SetLogPriority接口
+    设置log级别
 */
 
 #ifndef PLUGIN_LOG_H
 #define PLUGIN_LOG_H
 
 namespace PinClient {
-#define LOG_FILE_SIZE   (10 * 1024 * 1024)
-
 enum LogPriority : uint8_t {
     PRIORITY_ERROR = 0,
     PRIORITY_WARN,
@@ -33,12 +33,13 @@ enum LogPriority : uint8_t {
     PRIORITY_DEBUG
 };
 void LogPrint(LogPriority priority, const char *tag, const char *fmt, ...);
-void CloseLog(void);
+void CloseLog();
 bool SetLogPriority(LogPriority priority);
+void SetLogFileSize(unsigned int size); // 设置log文件大小，默认为10M，当日志超过10M后，重新命名
 
 #define LOGE(...) LogPrint(PRIORITY_ERROR, "ERROR:", __VA_ARGS__)
 #define LOGW(...) LogPrint(PRIORITY_WARN, "WARN:", __VA_ARGS__)
-#define LOGI(...) LogPrint(PRIORITY_INFO, "", __VA_ARGS__)
+#define LOGI(...) LogPrint(PRIORITY_INFO, "INFO:", __VA_ARGS__)
 #define LOGD(...) LogPrint(PRIORITY_DEBUG, "DEBUG:", __VA_ARGS__)
 } // namespace PinClient
 
