@@ -243,6 +243,15 @@ void BaseOp::build(OpBuilder &builder, OperationState &state, uint64_t id, Strin
     state.addAttribute("opCode", builder.getStringAttr(opCode));
 }
 
+//===----------------------------------------------------------------------===//
+// DebugOp
+
+void DebugOp::build(OpBuilder &builder, OperationState &state,
+                    uint64_t id)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+}
+
 // ===----------------------------------------------------------------------===//
 // FallThroughOp
 

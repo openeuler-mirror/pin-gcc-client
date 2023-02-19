@@ -579,6 +579,12 @@ Operation *GimpleToPluginOps::BuildOperation(uint64_t id)
             ret = condOp.getOperation();
             break;
         }
+        case GIMPLE_DEBUG: {
+            DebugOp debugOp = builder.create<DebugOp>(
+                    builder.getUnknownLoc(), id);
+            ret = debugOp.getOperation();
+            break;
+        }
         default: {
             BaseOp baseOp = builder.create<BaseOp>(
                     builder.getUnknownLoc(), id, BaseOp::getOperationName());
