@@ -840,13 +840,16 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
     mlir::Value opValue;
     switch (TREE_CODE(t)) {
         case INTEGER_CST : {
-            unsigned HOST_WIDE_INT init = tree_to_uhwi(t);
-            // FIXME : AnyAttr!
-            mlir::Attribute initAttr = builder.getI64IntegerAttr(init);
-            opValue = builder.create<ConstOp>(
-                    builder.getUnknownLoc(), treeId, IDefineCode::IntCST,
-                    readOnly, initAttr, rPluginType);
-            break;
+            mlir::Attribute initAttr;
+            if (tree_fits_shwi_p(t)) {
+                signed HOST_WIDE_INT sinit = tree_to_shwi(t);
+                initAttr = builder.getI64IntegerAttr(sinit);
+            } else if (tree_fits_uhwi_p(t)) {
+                unsigned HOST_WIDE_INT uinit = tree_to_uhwi(t);
+                initAttr = builder.getI64IntegerAttr(uinit);
+            } else {
+                abort();
+            }
         }
         case MEM_REF : {
             tree operand0 = TREE_OPERAND(t, 0);
