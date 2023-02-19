@@ -529,6 +529,16 @@ void GimpleToPluginOps::RemoveEdge(uint64_t src, uint64_t dest)
     remove_edge(e);
 }
 
+bool GimpleToPluginOps::IsLtoOptimize()
+{
+    return in_lto_p;
+}
+
+bool GimpleToPluginOps::IsWholeProgram()
+{
+    return flag_whole_program;
+}
+
 FunctionOp GimpleToPluginOps::BuildFunctionOp(uint64_t functionId)
 {
     function *fn = reinterpret_cast<function*>(functionId);

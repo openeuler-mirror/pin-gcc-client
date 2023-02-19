@@ -820,6 +820,24 @@ void DebugValueResult(PluginClient *client, Json::Value& root, string& result)
     client->ReceiveSendMsg("ValueResult", result);
 }
 
+void IsLtoOptimizeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    bool lto = clientAPI.IsLtoOptimize();
+    client->ReceiveSendMsg("BoolResult", std::to_string(lto));
+}
+
+void IsWholeProgramResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    bool wholePR = clientAPI.IsWholeProgram();
+    client->ReceiveSendMsg("BoolResult", std::to_string(wholePR));
+}
+
 typedef std::function<void(PluginClient*, Json::Value&, string&)> GetResultFunc;
 std::map<string, GetResultFunc> g_getResultFunc = {
     {"GetAllFunc", GetAllFuncResult},
@@ -868,6 +886,8 @@ std::map<string, GetResultFunc> g_getResultFunc = {
     {"ConfirmValue", ConfirmValueResult},
     {"BuildMemRef", BuildMemRefResult},
     {"DebugValue", DebugValueResult},
+    {"IsLtoOptimize",IsLtoOptimizeResult},
+    {"IsWholeProgram",IsWholeProgramResult},
 };
 
 void PluginClient::GetIRTransResult(void *gccData, const string& funcName, const string& param)
