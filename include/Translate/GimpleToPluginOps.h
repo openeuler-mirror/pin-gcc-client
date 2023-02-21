@@ -106,6 +106,10 @@ public:
 
     void RedirectFallthroughTarget(uint64_t, uint64_t);
     void RemoveEdge(uint64_t, uint64_t);
+
+    bool IsLtoOptimize();
+    bool IsWholeProgram();
+
 private:
     GimpleToPluginOps () = delete;
     mlir::OpBuilder builder;

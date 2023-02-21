@@ -53,6 +53,7 @@ public:
     Json::Value PhiOpJsonSerialize(mlir::Plugin::PhiOp& data);
     Json::Value AssignOpJsonSerialize(mlir::Plugin::AssignOp& data);
     Json::Value BaseOpJsonSerialize(mlir::Plugin::BaseOp data);
+    Json::Value DebugOpJsonSerialize(mlir::Plugin::DebugOp data);
     Json::Value FallThroughOpJsonSerialize(mlir::Plugin::FallThroughOp data, uint64_t&);
     Json::Value RetOpJsonSerialize(mlir::Plugin::RetOp data, uint64_t&);
     Json::Value ValueJsonSerialize(mlir::Value value);

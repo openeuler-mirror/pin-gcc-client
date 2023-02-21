@@ -280,4 +280,14 @@ void PluginClientAPI::RemoveEdge(uint64_t src, uint64_t dest)
     return gimpleConversion.RemoveEdge(src, dest);
 }
 
+bool PluginClientAPI::IsLtoOptimize()
+{
+    return gimpleConversion.IsLtoOptimize();
+}
+
+bool PluginClientAPI::IsWholeProgram()
+{
+    return gimpleConversion.IsWholeProgram();
+}
+
 } // namespace PluginAPI

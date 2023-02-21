@@ -182,6 +182,8 @@ Json::Value PluginJson::OperationJsonSerialize(mlir::Operation *operation, uint6
         root = RetOpJsonSerialize(op, bbId);
     } else if (BaseOp op = llvm::dyn_cast<BaseOp>(operation)) {
         root = BaseOpJsonSerialize(op);
+    } else if (DebugOp op = llvm::dyn_cast<DebugOp>(operation)) {
+        root = DebugOpJsonSerialize(op);
     }
     root["OperationName"] = operation->getName().getStringRef().str();
     return root;
@@ -200,6 +202,13 @@ Json::Value PluginJson::RetOpJsonSerialize(RetOp data, uint64_t &bbId)
     Json::Value root;
     bbId = data.addressAttr().getInt();
     root["address"] = std::to_string(bbId);
+    return root;
+}
+
+Json::Value PluginJson::DebugOpJsonSerialize(DebugOp data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
     return root;
 }
 

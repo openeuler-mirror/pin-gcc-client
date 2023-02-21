@@ -95,6 +95,9 @@ public:
     virtual mlir::Value BuildMemRef(PluginTypeBase, uint64_t, uint64_t) = 0;
     virtual void RedirectFallthroughTarget(uint64_t, uint64_t) = 0;
     virtual void RemoveEdge(uint64_t, uint64_t) = 0;
+
+    virtual bool IsLtoOptimize() = 0;
+    virtual bool IsWholeProgram() = 0;
 }; // class BasicPluginOpsAPI
 } // namespace PluginAPI
 

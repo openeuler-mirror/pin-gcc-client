@@ -235,6 +235,16 @@ def BaseOp : Plugin_Op<"statement_base", [NoSideEffect]> {
   ];
 }
 
+def DebugOp : Plugin_Op<"debug", [NoSideEffect]> {
+  let summary = "DebugOp.";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id);
+  let results = (outs AnyType);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id)>
+  ];
+}
+
 // Terminators
 // Opaque builder used for terminator operations that contain successors.
 

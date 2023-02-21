@@ -529,6 +529,16 @@ void GimpleToPluginOps::RemoveEdge(uint64_t src, uint64_t dest)
     remove_edge(e);
 }
 
+bool GimpleToPluginOps::IsLtoOptimize()
+{
+    return in_lto_p;
+}
+
+bool GimpleToPluginOps::IsWholeProgram()
+{
+    return flag_whole_program;
+}
+
 FunctionOp GimpleToPluginOps::BuildFunctionOp(uint64_t functionId)
 {
     function *fn = reinterpret_cast<function*>(functionId);
@@ -577,6 +587,12 @@ Operation *GimpleToPluginOps::BuildOperation(uint64_t id)
                                         (uint64_t)EDGE_SUCC(stmt->bb, 0)->dest,
                                         (uint64_t)EDGE_SUCC(stmt->bb, 1)->dest);
             ret = condOp.getOperation();
+            break;
+        }
+        case GIMPLE_DEBUG: {
+            DebugOp debugOp = builder.create<DebugOp>(
+                    builder.getUnknownLoc(), id);
+            ret = debugOp.getOperation();
             break;
         }
         default: {
@@ -834,13 +850,16 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
     mlir::Value opValue;
     switch (TREE_CODE(t)) {
         case INTEGER_CST : {
-            unsigned HOST_WIDE_INT init = tree_to_uhwi(t);
-            // FIXME : AnyAttr!
-            mlir::Attribute initAttr = builder.getI64IntegerAttr(init);
-            opValue = builder.create<ConstOp>(
-                    builder.getUnknownLoc(), treeId, IDefineCode::IntCST,
-                    readOnly, initAttr, rPluginType);
-            break;
+            mlir::Attribute initAttr;
+            if (tree_fits_shwi_p(t)) {
+                signed HOST_WIDE_INT sinit = tree_to_shwi(t);
+                initAttr = builder.getI64IntegerAttr(sinit);
+            } else if (tree_fits_uhwi_p(t)) {
+                unsigned HOST_WIDE_INT uinit = tree_to_uhwi(t);
+                initAttr = builder.getI64IntegerAttr(uinit);
+            } else {
+                abort();
+            }
         }
         case MEM_REF : {
             tree operand0 = TREE_OPERAND(t, 0);
