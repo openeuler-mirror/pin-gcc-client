@@ -78,6 +78,9 @@ namespace Detail {
     struct PluginIntegerTypeStorage;
     struct PluginFloatTypeStorage;
     struct PluginPointerTypeStorage;
+    struct PluginTypeAndSizeStorage;
+    struct PluginFunctionTypeStorage;
+    struct PluginStructTypeStorage;
 }
 
 class PluginIntegerType : public Type::TypeBase<PluginIntegerType, PluginTypeBase, Detail::PluginIntegerTypeStorage> {
@@ -127,6 +130,60 @@ public:
 
     unsigned isReadOnlyElem();
 }; // class PluginPointerType
+
+class PluginArrayType : public Type::TypeBase<PluginArrayType, PluginTypeBase, Detail::PluginTypeAndSizeStorage> {
+public:
+    using Base::Base;
+
+    PluginTypeID getPluginTypeID ();
+
+    static bool isValidElementType(Type type);
+
+    static PluginArrayType get(MLIRContext *context, Type elementType, unsigned numElements);
+
+    Type getElementType();
+
+    unsigned getNumElements();
+}; // class PluginArrayType
+
+class PluginFunctionType : public Type::TypeBase<PluginFunctionType, PluginTypeBase, Detail::PluginFunctionTypeStorage> {
+public:
+    using Base::Base;
+
+    PluginTypeID getPluginTypeID ();
+
+    static bool isValidArgumentType(Type type);
+
+    static bool isValidResultType(Type type);
+
+    static PluginFunctionType get(MLIRContext *context, Type result, ArrayRef<Type> arguments);
+
+    Type getReturnType();
+
+    unsigned getNumParams();
+
+    Type getParamType(unsigned i);
+
+    ArrayRef<Type> getParams();
+}; // class PluginFunctionType
+
+class PluginStructType : public Type::TypeBase<PluginStructType, PluginTypeBase, Detail::PluginStructTypeStorage> {
+public:
+    using Base::Base;
+
+    PluginTypeID getPluginTypeID ();
+
+    static bool isValidElementType(Type type);
+
+    static PluginStructType get(MLIRContext *context, StringRef name, ArrayRef<Type> elements, ArrayRef<StringRef> elemNames);
+
+    StringRef getName();
+
+    ArrayRef<Type> getBody();
+
+    ArrayRef<StringRef> getElementNames();
+
+}; // class PluginStructType
 
 class PluginVoidType : public Type::TypeBase<PluginVoidType, PluginTypeBase, TypeStorage> {
 public:

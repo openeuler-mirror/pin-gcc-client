@@ -98,6 +98,80 @@ namespace Detail {
         Type pointee;
         unsigned readOnlyPointee;
     };
+
+    struct PluginTypeAndSizeStorage : public TypeStorage {
+        using KeyTy = std::tuple<Type, unsigned>;
+
+        PluginTypeAndSizeStorage(const KeyTy &key)
+            : elementType(std::get<0>(key)), numElements(std::get<1>(key)) {}
+        
+        static PluginTypeAndSizeStorage *construct(TypeStorageAllocator &allocator, KeyTy key)
+        {
+            return new (allocator.allocate<PluginTypeAndSizeStorage>())
+                PluginTypeAndSizeStorage(key);
+        }
+
+        bool operator==(const KeyTy &key) const
+        {
+            return std::make_tuple(elementType, numElements) == key;
+        }
+
+        Type elementType;
+        unsigned numElements;
+    };
+
+    struct PluginFunctionTypeStorage : public TypeStorage {
+        using KeyTy = std::tuple<Type, ArrayRef<Type>>;
+
+        PluginFunctionTypeStorage(Type resultType, ArrayRef<Type> argumentTypes)
+            : resultType(resultType), argumentTypes(argumentTypes) {}
+
+        static PluginFunctionTypeStorage *construct(TypeStorageAllocator &allocator, KeyTy key)
+        {
+            return new (allocator.allocate<PluginFunctionTypeStorage>())
+                PluginFunctionTypeStorage(std::get<0>(key), allocator.copyInto(std::get<1>(key)));
+        }
+
+        static unsigned hashKey(const KeyTy &key) {
+            // LLVM doesn't like hashing bools in tuples.
+            return llvm::hash_combine(std::get<0>(key), std::get<1>(key));
+        }
+
+        bool operator==(const KeyTy &key) const
+        {
+            return std::make_tuple(resultType, argumentTypes) == key;
+        }
+
+        Type resultType;
+        ArrayRef<Type> argumentTypes;
+    };
+
+    struct PluginStructTypeStorage : public TypeStorage {
+        using KeyTy = std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StringRef>>;
+
+        PluginStructTypeStorage(StringRef name, ArrayRef<Type> elements, ArrayRef<StringRef> elemNames)
+            : name(name), elements(elements), elemNames(elemNames) {}
+
+        static PluginStructTypeStorage *construct(TypeStorageAllocator &allocator, KeyTy key)
+        {
+            return new (allocator.allocate<PluginStructTypeStorage>())
+                PluginStructTypeStorage(std::get<0>(key), allocator.copyInto(std::get<1>(key)), allocator.copyInto(std::get<2>(key)));
+        }
+
+        static unsigned hashKey(const KeyTy &key) {
+            // LLVM doesn't like hashing bools in tuples.
+            return llvm::hash_combine(std::get<0>(key), std::get<1>(key), std::get<2>(key));
+        }
+
+        bool operator==(const KeyTy &key) const
+        {
+            return std::make_tuple(name, elements, elemNames) == key;
+        }
+
+        StringRef name;
+        ArrayRef<Type> elements;
+        ArrayRef<StringRef> elemNames;
+    };
 } // namespace Detail
 } // namespace PluginIR
 
@@ -121,6 +195,15 @@ PluginTypeID PluginTypeBase::getPluginTypeID ()
         return Ty.getPluginTypeID ();
     }
     if (auto Ty = dyn_cast<PluginIR::PluginPointerType>()) {
+        return Ty.getPluginTypeID ();
+    }
+    if (auto Ty = dyn_cast<PluginIR::PluginArrayType>()) {
+        return Ty.getPluginTypeID ();
+    }
+    if (auto Ty = dyn_cast<PluginIR::PluginFunctionType>()) {
+        return Ty.getPluginTypeID ();
+    }
+    if (auto Ty = dyn_cast<PluginIR::PluginStructType>()) {
         return Ty.getPluginTypeID ();
     }
     return PluginTypeID::UndefTyID;
@@ -294,4 +377,109 @@ unsigned PluginPointerType::isReadOnlyElem()
 PluginPointerType PluginPointerType::get (MLIRContext *context, Type pointee, unsigned readOnlyPointee)
 {
     return Base::get(context, pointee, readOnlyPointee);
+}
+
+
+// ===----------------------------------------------------------------------===//
+// Plugin Array Type
+// ===----------------------------------------------------------------------===//
+
+PluginTypeID PluginArrayType::getPluginTypeID()
+{
+    return PluginTypeID::ArrayTyID;
+}
+
+bool PluginArrayType::isValidElementType(Type type)
+{
+    return !type.isa<PluginVoidType, PluginFunctionType, PluginUndefType>();
+}
+
+PluginArrayType PluginArrayType::get(MLIRContext *context, Type elementType, unsigned numElements)
+{
+    return Base::get(context, elementType, numElements);
+}
+
+Type PluginArrayType::getElementType()
+{ 
+    return getImpl()->elementType;
+}
+
+unsigned PluginArrayType::getNumElements()
+{
+    return getImpl()->numElements;
+}
+
+// ===----------------------------------------------------------------------===//
+// Plugin Function Type
+// ===----------------------------------------------------------------------===//
+
+PluginTypeID PluginFunctionType::getPluginTypeID()
+{
+    return PluginTypeID::FunctionTyID;
+}
+
+bool PluginFunctionType::isValidArgumentType(Type type)
+{
+  return !type.isa<PluginVoidType, PluginFunctionType>();
+}
+
+bool PluginFunctionType::isValidResultType(Type type) {
+  return !type.isa<PluginFunctionType>();
+}
+
+PluginFunctionType PluginFunctionType::get(MLIRContext *context, Type result, ArrayRef<Type> arguments)
+{
+    return Base::get(context, result, arguments);
+}
+
+Type PluginFunctionType::getReturnType()
+{
+    return getImpl()->resultType;
+}
+
+unsigned PluginFunctionType::getNumParams()
+{
+  return getImpl()->argumentTypes.size();
+}
+
+Type PluginFunctionType::getParamType(unsigned i) {
+  return getImpl()->argumentTypes[i];
+}
+
+ArrayRef<Type> PluginFunctionType::getParams()
+{
+  return getImpl()->argumentTypes;
+}
+
+// ===----------------------------------------------------------------------===//
+// Plugin Struct Type
+// ===----------------------------------------------------------------------===//
+
+PluginTypeID PluginStructType::getPluginTypeID()
+{
+    return PluginTypeID::StructTyID;
+}
+
+bool PluginStructType::isValidElementType(Type type) {
+  return !type.isa<PluginVoidType, PluginFunctionType>();
+}
+
+PluginStructType PluginStructType::get(MLIRContext *context, StringRef name, ArrayRef<Type> elements, ArrayRef<StringRef> elemNames)
+{
+    return Base::get(context, name, elements, elemNames);
+}
+
+StringRef PluginStructType::getName()
+{
+  return getImpl()->name;
+}
+
+ArrayRef<Type> PluginStructType::getBody()
+{
+  return getImpl()->elements;
+}
+
+ArrayRef<StringRef> PluginStructType::getElementNames()
+{
+  return getImpl()->elemNames;
 }
