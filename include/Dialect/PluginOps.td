@@ -85,12 +85,15 @@ def CallOp : Plugin_Op<"call", [
     The arguments list must match the arguments expected by the callee.
   }];
   let arguments = (ins UI64Attr:$id,
-                       FlatSymbolRefAttr:$callee,
+                       OptionalAttr<FlatSymbolRefAttr>:$callee,
                        Variadic<AnyType>:$inputs);
   let results = (outs Optional<AnyType>:$result);
   let builders = [
     OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$callee,
-                      "ArrayRef<Value>":$arguments, "Type":$retType)>
+                      "ArrayRef<Value>":$arguments, "Type":$retType)>,
+    OpBuilderDAG<(ins "uint64_t":$id,
+                      "ArrayRef<Value>":$arguments,
+                      "Type":$retType)>
   ];
   let extraClassDeclaration = [{
     Type getResultType() { return this->getOperation()->getResult(0).getType(); }

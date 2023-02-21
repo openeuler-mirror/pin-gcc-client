@@ -341,7 +341,10 @@ Json::Value PluginJson::CallOpJsonSerialize(CallOp& data)
 {
     Json::Value item;
     item["id"] = std::to_string(data.idAttr().getInt());
-    item["callee"] = data.callee().str();
+    Optional<StringRef> calleeName = data.callee();
+    if (calleeName) {
+        item["callee"] = calleeName->str();
+    }
     item["OperationName"] = data.getOperation()->getName().getStringRef().str();
     size_t opIdx = 0;
     for (mlir::Value v : data.getArgOperands()) {

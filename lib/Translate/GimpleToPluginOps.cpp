@@ -645,10 +645,6 @@ uint64_t GimpleToPluginOps::CreateGphiNode(uint64_t argId, uint64_t blockId)
 CallOp GimpleToPluginOps::BuildCallOp(uint64_t gcallId)
 {
     gcall *stmt = reinterpret_cast<gcall*>(gcallId);
-    tree fndecl = gimple_call_fndecl(stmt);
-    if (fndecl == NULL_TREE || DECL_NAME(fndecl) == NULL_TREE) {
-        return nullptr;
-    }
     llvm::SmallVector<Value, 4> ops;
     ops.reserve(gimple_call_num_args(stmt));
     for (unsigned i = 0; i < gimple_call_num_args(stmt); i++) {
@@ -658,11 +654,18 @@ CallOp GimpleToPluginOps::BuildCallOp(uint64_t gcallId)
         Value arg = TreeToValue(argId);
         ops.push_back(arg);
     }
-    StringRef callName(IDENTIFIER_POINTER(DECL_NAME(fndecl)));
     tree returnType = gimple_call_return_type(stmt);
     PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
-    CallOp ret = builder.create<CallOp>(builder.getUnknownLoc(),
-                                        gcallId, callName, ops, rPluginType);
+    tree fndecl = gimple_call_fndecl(stmt);
+    CallOp ret;
+    if (fndecl == NULL_TREE || DECL_NAME(fndecl) == NULL_TREE) {
+        ret = builder.create<CallOp>(builder.getUnknownLoc(),
+                                     gcallId, ops, rPluginType);
+    } else {
+        StringRef callName(IDENTIFIER_POINTER(DECL_NAME(fndecl)));
+        ret = builder.create<CallOp>(builder.getUnknownLoc(),
+                                     gcallId, callName, ops, rPluginType);
+    }
     return ret;
 }
 
@@ -860,6 +863,10 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             } else {
                 abort();
             }
+            opValue = builder.create<ConstOp>(
+                    builder.getUnknownLoc(), treeId, IDefineCode::IntCST,
+                    readOnly, initAttr, rPluginType);
+            break;
         }
         case MEM_REF : {
             tree operand0 = TREE_OPERAND(t, 0);

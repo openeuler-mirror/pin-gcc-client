@@ -146,6 +146,14 @@ void CallOp::build(OpBuilder &builder, OperationState &state,
     if (retType != nullptr) state.addTypes(retType);
 }
 
+void CallOp::build(OpBuilder &builder, OperationState &state,
+                   uint64_t id, ArrayRef<Value> arguments, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addOperands(arguments);
+    if (retType != nullptr) state.addTypes(retType);
+}
+
 /// Return the callee of the generic call operation, this is required by the
 /// call interface.
 CallInterfaceCallable CallOp::getCallableForCallee()
