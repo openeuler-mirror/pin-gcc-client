@@ -91,7 +91,7 @@ def CallOp : Plugin_Op<"call", [
   let builders = [
     OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "StringRef":$callee,
                       "ArrayRef<Value>":$arguments, "Type":$retType)>,
-    OpBuilderDAG<(ins "uint64_t":$id,
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address,
                       "ArrayRef<Value>":$arguments,
                       "Type":$retType)>
   ];
@@ -307,7 +307,7 @@ def FieldDeclOp : FieldDecl<"field"> {
   let description = [{TODO}];
 
   let builders = [
-  OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
                     "bool":$readOnly, "bool":$addressable, "bool":$used, "int":$uid, "Value":$initial,
                     "Value":$name, "uint64_t":$chain, "Value":$fieldOffset, "Value":$fieldBitOffset, "Type":$retType)>
 ];
@@ -325,7 +325,7 @@ def AddressOp : Address<"address"> {
   let summary = "AddressOp";
   let description = [{TODO}];
   let builders = [
-  OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
                     "bool":$readOnly, "Value":$operand, "Type":$retType)>
 ];
   let extraClassDeclaration = [{
@@ -338,7 +338,7 @@ def ConstructorOp : Constructor<"constructor"> {
   let summary = "ConstructorOp";
   let description = [{TODO}];
   let builders = [
-  OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
                     "bool":$readOnly, "int32_t":$len, "ArrayRef<Value>":$idx, "ArrayRef<Value>":$val,
                     "Type":$retType)>
 ];

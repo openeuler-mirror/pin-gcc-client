@@ -386,7 +386,6 @@ Json::Value PluginJson::CallOpJsonSerialize(CallOp& data)
 {
     Json::Value item;
     item["id"] = std::to_string(data.idAttr().getInt());
-    item["address"] = std::to_string(data.addressAttr().getInt());
     Optional<StringRef> calleeName = data.callee();
     if (calleeName) {
         item["callee"] = calleeName->str();

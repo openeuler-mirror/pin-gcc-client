@@ -327,9 +327,10 @@ void CallOp::build(OpBuilder &builder, OperationState &state,
 }
 
 void CallOp::build(OpBuilder &builder, OperationState &state,
-                   uint64_t id, ArrayRef<Value> arguments, Type retType)
+                   uint64_t id, uint64_t address, ArrayRef<Value> arguments, Type retType)
 {
     state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("address", builder.getI64IntegerAttr(address));
     state.addOperands(arguments);
     if (retType != nullptr) state.addTypes(retType);
 }

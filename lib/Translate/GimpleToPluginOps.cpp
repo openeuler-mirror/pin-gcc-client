@@ -729,7 +729,7 @@ CallOp GimpleToPluginOps::BuildCallOp(uint64_t gcallId)
     CallOp ret;
     if (fndecl == NULL_TREE || DECL_NAME(fndecl) == NULL_TREE) {
         ret = builder.create<CallOp>(builder.getUnknownLoc(),
-                                     gcallId, ops, rPluginType);
+                                     gcallId, (uint64_t)stmt->bb, ops, rPluginType);
     } else {
         StringRef callName(IDENTIFIER_POINTER(DECL_NAME(fndecl)));
         ret = builder.create<CallOp>(builder.getUnknownLoc(),
