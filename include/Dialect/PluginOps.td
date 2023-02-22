@@ -84,12 +84,12 @@ def CallOp : Plugin_Op<"call", [
     The callee name is attached as a symbol reference via an attribute.
     The arguments list must match the arguments expected by the callee.
   }];
-  let arguments = (ins UI64Attr:$id,
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address,
                        OptionalAttr<FlatSymbolRefAttr>:$callee,
                        Variadic<AnyType>:$inputs);
   let results = (outs Optional<AnyType>:$result);
   let builders = [
-    OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$callee,
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "StringRef":$callee,
                       "ArrayRef<Value>":$arguments, "Type":$retType)>,
     OpBuilderDAG<(ins "uint64_t":$id,
                       "ArrayRef<Value>":$arguments,
@@ -138,6 +138,26 @@ def AssignOp : Plugin_Op<"assign", [NoSideEffect]> {
   // Specify a parser and printer method.
   // let parser = [{ return ::parseAssignOp(parser, result); }];
   // let printer = [{ return ::print(p, *this); }];
+}
+
+def NopOp : Plugin_Op<"nop", [NoSideEffect]> {
+  let summary = "nop";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id)>,
+  ];
+}
+
+def EHElseOp : Plugin_Op<"eh_else", [NoSideEffect]> {
+  let summary = "EHElseOP";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, ArrayAttr:$nBody, ArrayAttr:$eBody);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "ArrayRef<uint64_t>":$nBody, "ArrayRef<uint64_t>":$eBody)>,
+  ];
 }
 
 class Placeholder<string mnemonic> : Plugin_Op<mnemonic, [SameVariadicOperandSize]> {
@@ -442,6 +462,113 @@ def DebugOp : Plugin_Op<"debug", [NoSideEffect]> {
   ];
 }
 
+def AsmOp : Plugin_Op<"asm", [NoSideEffect]> {
+  let summary = "asm Op";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, StrAttr:$statement, UI32Attr:$nInputs, UI32Attr:$nOutputs, UI32Attr:$nClobbers,
+                   Variadic<AnyType>:$operands);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$statement, "uint32_t":$nInputs, "uint32_t":$nOutputs,
+                  "uint32_t":$nClobbers, "ArrayRef<Value>":$operands)>
+  ];
+
+  let extraClassDeclaration = [{
+    unsigned GetNInputs() { return this->nInputsAttr().getInt(); };
+    unsigned GetNoutputs() { return this->nOutputsAttr().getInt(); };
+    unsigned GetNClobbers() { return this->nClobbersAttr().getInt(); };
+    Value GetInputOp(unsigned index) { return getOperand(index); };
+    Value GetOutputOp(unsigned index) { return getOperand(this->nInputsAttr().getInt() + index); };
+    Value GetCkobberOp(unsigned index) { 
+      return getOperand(this->nInputsAttr().getInt() + this->nOutputsAttr().getInt() + index); };
+  }]; 
+}
+
+def SwitchOp : Plugin_Op<"switch", [NoSideEffect]> {
+  let summary = "switch op.";
+  let description = [{TODO}];
+  let successors = (successor
+    AnySuccessor:$defaultDestination,
+    VariadicSuccessor<AnySuccessor>:$caseDestinations
+  );
+  let arguments = (ins UI64Attr:$id, AnyType:$index, UI64Attr:$address, AnyType:$defaultLabel, Variadic<AnyType>:$operands,
+                  UI64Attr:$defaultaddr, ArrayAttr:$caseaddrs);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$index, "uint64_t":$address, "Value":$defaultLabel,
+                      "ArrayRef<Value>":$operands, "Block*":$defaultDestination, "uint64_t":$defaultaddr,
+                      "ArrayRef<Block*>":$caseDestinations, "ArrayRef<uint64_t>":$caseaddrs)>
+  ];
+
+  let extraClassDeclaration = [{
+    unsigned GetNumLabels() { return getNumOperands() - 2; };
+    Block* GetDefautDest() { return defaultDestination();}
+    SmallVector<mlir::Block*> GetCaseDest() { return caseDestinations(); };
+  }];
+}
+
+def LabelOp : Plugin_Op<"label", [NoSideEffect]> {
+  let summary = "Label op.";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, AnyType:$index);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$index)>
+  ];
+  let extraClassDeclaration = [{
+    Value GetLabelLabel() { return this->getOperation()->getOperand(0); };
+  }];
+}
+
+def EHMntOp : Plugin_Op<"eh_mnt", [NoSideEffect]> {
+  let summary = "EH_MUST_NOT_THROW op.";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, AnyType:$decl);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$decl)>
+  ];
+  let extraClassDeclaration = [{
+    Value Getfndecl() { return decl(); };
+  }];
+}
+
+def BindOp : Plugin_Op<"Bind", [NoSideEffect]> {
+  let summary = "BindOp";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, AnyType:$vars, ArrayAttr:$body, AnyType:$block);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$vars, "ArrayRef<uint64_t>":$body, "Value":$block)>
+  ];
+  let extraClassDeclaration = [{
+    Value GetVars() { return vars(); };
+    Value GetBlock() { return block(); };
+  }];
+}
+
+def TryOp : Plugin_Op<"try", [NoSideEffect]> {
+  let summary = "TryOp";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, ArrayAttr:$eval, ArrayAttr:$cleanup, UI64Attr:$kind);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "ArrayRef<uint64_t>":$eval, "ArrayRef<uint64_t>":$cleanup, "uint64_t":$kind)>
+  ];
+}
+
+def CatchOp : Plugin_Op<"catch", [NoSideEffect]> {
+  let summary = "CatchOp";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, AnyType:$types, ArrayAttr:$handler);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$types, "ArrayRef<uint64_t>":$handler)>
+  ];
+  let extraClassDeclaration = [{
+    Value GetTypes() { return types(); };
+  }];
+}
 // Terminators
 // Opaque builder used for terminator operations that contain successors.
 
@@ -493,4 +620,66 @@ def RetOp : Plugin_TerminatorOp<"ret", [NoSideEffect]> {
   ];
 }
 
+def GotoOp : Plugin_TerminatorOp<"goto", [NoSideEffect]> {
+  let summary = "GotoOp";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address, AnyType:$dest, UI64Attr:$successaddr);
+  let results = (outs AnyType);
+  let successors = (successor AnySuccessor:$success);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "Value":$dest, "Block*":$success, "uint64_t":$successaddr)>
+  ];
+
+  let extraClassDeclaration = [{
+    Value GetLabel() { return this->getOperation()->getOperand(0); }
+  }];
+}
+
+def TransactionOp : Plugin_TerminatorOp<"transaction", [NoSideEffect]> {
+  let summary = "TransactionOp";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address, ArrayAttr:$stmtaddr, AnyType:$labelNorm,
+                      AnyType:$labelUninst, AnyType:$labelOver, UI64Attr:$fallthroughaddr, UI64Attr:$abortaddr);
+  let results = (outs AnyType);
+  let successors = (successor AnySuccessor:$fallthrough, AnySuccessor:$abort);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "ArrayRef<uint64_t>":$stmtaddr, "Value":$labelNorm,
+                      "Value":$labelUninst, "Value":$labelOver, "Block*":$fallthrough, "uint64_t":$fallthroughaddr,
+                      "Block*":$abort, "uint64_t":$abortaddr)>
+  ];
+
+  let extraClassDeclaration = [{
+    Value GetTransactionNormal() { return labelNorm(); }
+    Value GetTransactionUinst() { return labelUninst(); }
+    Value GetTransactionOver() { return labelOver(); }
+  }];
+}
+
+def ResxOp : Plugin_TerminatorOp<"resx", [NoSideEffect]> {
+  let summary = "ResxOp";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address, UI64Attr:$region);
+  let results = (outs AnyType);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "uint64_t":$region)>
+  ];
+  let extraClassDeclaration = [{
+    uint64_t GetTransactionNormal() { return region(); }
+  }];
+}
+
+def EHDispatchOp : Plugin_TerminatorOp<"dispatch", [NoSideEffect]> {
+  let summary = "EHDispatchOp";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address, UI64Attr:$region, ArrayAttr:$ehHandlersaddrs);
+  let results = (outs AnyType);
+  let successors = (successor VariadicSuccessor<AnySuccessor>:$ehHandlers);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "uint64_t":$region, "ArrayRef<Block*>":$ehHandlers,
+                  "ArrayRef<uint64_t>":$ehHandlersaddrs)>
+  ];
+  let extraClassDeclaration = [{
+    uint64_t GetTransactionNormal() { return region(); }
+  }];
+}
 #endif // PLUGIN_OPS_TD

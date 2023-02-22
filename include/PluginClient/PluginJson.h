@@ -59,6 +59,8 @@ public:
     Json::Value ValueJsonSerialize(mlir::Value value);
     Json::Value MemOpJsonSerialize(mlir::Plugin::MemOp& data);
     Json::Value SSAOpJsonSerialize(mlir::Plugin::SSAOp& data);
+    Json::Value AsmOpJsonSerialize(mlir::Plugin::AsmOp data);
+    Json::Value SwitchOpJsonSerialize(mlir::Plugin::SwitchOp data, uint64_t &bbId);
     Json::Value ListOpJsonSerialize(mlir::Plugin::ListOp& data);
     Json::Value StrOpJsonSerialize(mlir::Plugin::StrOp& data);
     Json::Value ArrayOpJsonSerialize(mlir::Plugin::ArrayOp& data);
@@ -68,7 +70,18 @@ public:
     Json::Value FieldDeclOpJsonSerialize(mlir::Plugin::FieldDeclOp& data);
     Json::Value ConstructorOpJsonSerialize(mlir::Plugin::ConstructorOp& data);
     Json::Value ComponentOpJsonSerialize(mlir::Plugin::ComponentOp& data);
+    Json::Value GotoOpJsonSerialize(mlir::Plugin::GotoOp data, uint64_t&);
     Json::Value AddressOpJsonSerialize(mlir::Plugin::AddressOp& data);
+    Json::Value TransactionOpJsonSerialize(mlir::Plugin::TransactionOp data, uint64_t&);
+    Json::Value LabelOpJsonSerialize(mlir::Plugin::LabelOp data);
+    Json::Value EHMntOpJsonSerialize(mlir::Plugin::EHMntOp data);
+    Json::Value ResxOpJsonSerialize(mlir::Plugin::ResxOp data, uint64_t&);
+    Json::Value BindOpJsonSerialize(mlir::Plugin::BindOp data);
+    Json::Value TryOpJsonSerialize(mlir::Plugin::TryOp data);
+    Json::Value CatchOpJsonSerialize(mlir::Plugin::CatchOp data);
+    Json::Value EHDispatchOpJsonSerialize(mlir::Plugin::EHDispatchOp data, uint64_t&);
+    Json::Value NopOpJsonSerialize(mlir::Plugin::NopOp& data);
+    Json::Value EHElseOpJsonSerialize(mlir::Plugin::EHElseOp& data);
     /* 将Type类型数据序列化 */
     Json::Value TypeJsonSerialize(PluginIR::PluginTypeBase& type);
     PluginIR::PluginTypeBase TypeJsonDeSerialize(const string& data, mlir::MLIRContext &context);
