@@ -45,10 +45,12 @@
 #include "ssa.h"
 #include "output.h"
 #include "langhooks.h"
+#include "print-tree.h"
+#include "stor-layout.h"
 
-using namespace mlir;
 
 namespace PluginIR {
+using namespace mlir;
 namespace Detail {
 /* Support for translating Plugin IR types to MLIR Plugin dialect types. */
 class TypeFromPluginIRTranslatorImpl {
@@ -77,6 +79,77 @@ private:
         return false;
     }
 
+    unsigned getDomainIndex (tree type)
+    {
+        return tree_to_shwi(TYPE_MAX_VALUE(TYPE_DOMAIN(type)))+1;
+    }
+
+    llvm::SmallVector<Type> getArgsType (tree type)
+    {
+        tree parmlist = TYPE_ARG_TYPES (type);
+        tree parmtype;
+        llvm::SmallVector<Type> typelist;
+        for (; parmlist; parmlist = TREE_CHAIN (parmlist))
+        {
+            parmtype = TREE_VALUE (parmlist);
+            typelist.push_back(translatePrimitiveType(parmtype));
+        }
+        return typelist;
+    }
+
+    const char *getTypeName (tree type)
+    {
+        const char *tname = NULL;
+
+        if (type == NULL)
+        {
+            return NULL;
+        }
+
+        if (TYPE_NAME (type) != NULL)
+        {
+            if (TREE_CODE (TYPE_NAME (type)) == IDENTIFIER_NODE)
+	        {
+	            tname = IDENTIFIER_POINTER (TYPE_NAME (type));
+	        }
+            else if (DECL_NAME (TYPE_NAME (type)) != NULL)
+	        {
+	            tname = IDENTIFIER_POINTER (DECL_NAME (TYPE_NAME (type)));
+	        }
+        }
+        return tname;
+    }
+
+    llvm::SmallVector<Type> getElemType(tree type)
+    {
+        llvm::SmallVector<Type> typelist;
+        tree parmtype;
+        for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
+        {
+            if (TREE_CODE (field) == FIELD_DECL)
+            {
+                parmtype = TREE_TYPE(field);
+                typelist.push_back(translatePrimitiveType(parmtype));
+            }
+        }
+        return typelist;
+    }
+    
+    llvm::SmallVector<StringRef> getElemNames(tree type)
+    {
+        llvm::SmallVector<StringRef> names;
+        StringRef name;
+        for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
+        {
+            if (TREE_CODE (field) == FIELD_DECL)
+            {
+                name = IDENTIFIER_POINTER ( DECL_NAME(field));
+                names.push_back(name);
+            }
+        }
+        return names;
+    }
+
     /* Translates the given primitive, i.e. non-parametric in MLIR nomenclature,
        type. */
     PluginTypeBase translatePrimitiveType (tree type)
@@ -93,12 +166,21 @@ private:
         if (TREE_CODE(type) == POINTER_TYPE)
             return PluginPointerType::get(&context, translatePrimitiveType(TREE_TYPE(type)),
                 TYPE_READONLY(TREE_TYPE(type)) ? 1 : 0);
+        if (TREE_CODE(type) == ARRAY_TYPE)
+            return PluginArrayType::get(&context,translatePrimitiveType(TREE_TYPE(type)), getDomainIndex(type));
+        if (TREE_CODE(type) == FUNCTION_TYPE) {
+            llvm::SmallVector<Type> argsType = getArgsType(type);
+            return PluginFunctionType::get(&context, translatePrimitiveType(TREE_TYPE(type)),argsType);
+        }
+        if (TREE_CODE(type) == RECORD_TYPE) {
+            return PluginStructType::get(&context, getTypeName(type), getElemType(type), getElemNames(type));
+        }
         return PluginUndefType::get(&context);
     }
 
     /* The context in which MLIR types are created. */
     mlir::MLIRContext &context;
-};
+}; // class TypeFromPluginIRTranslatorImpl
 
 /* Support for translating MLIR Plugin dialect types to Plugin IR types . */
 class TypeToPluginIRTranslatorImpl {
@@ -124,6 +206,16 @@ private:
             return true;
         }
         return false;
+    }
+
+    auto_vec<tree> getParamsType(PluginFunctionType Ty)
+    {
+        auto_vec<tree> paramTypes;
+        ArrayRef<Type> ArgsTypes = Ty.getParams();
+        for (auto ty :ArgsTypes) {
+            paramTypes.safe_push(translatePrimitiveType(ty.dyn_cast<PluginTypeBase>()));
+        }
+        return paramTypes;
     }
 
     tree translatePrimitiveType(PluginTypeBase type)
@@ -179,9 +271,50 @@ private:
             TYPE_READONLY(elmTy) = elmConst ? 1 : 0;
             return build_pointer_type(elmTy);
         }
+        if (auto Ty = type.dyn_cast<PluginArrayType>()) {
+            mlir::Type elmType = Ty.getElementType();
+            auto ty = elmType.dyn_cast<PluginTypeBase>();
+            tree elmTy = translatePrimitiveType(ty);
+            unsigned elmNum = Ty.getNumElements();
+            tree index = build_index_type (size_int (elmNum));
+            return build_array_type(elmTy, index);
+        }
+        if (auto Ty = type.dyn_cast<PluginFunctionType>()) {
+            Type resultType = Ty.getReturnType();
+            tree returnType = translatePrimitiveType(resultType.dyn_cast<PluginTypeBase>());
+            auto_vec<tree> paramTypes = getParamsType(Ty);
+            return build_function_type_array(returnType, paramTypes.length (), paramTypes.address ());
+        }
+        if (auto Ty = type.dyn_cast<PluginStructType>()) {
+            ArrayRef<Type> elemTypes = Ty.getBody();
+            ArrayRef<StringRef> elemNames = Ty.getElementNames();
+            StringRef tyName = Ty.getName();
+            unsigned fieldSize = elemNames.size();
+
+            tree fields[fieldSize];
+            tree ret;
+            unsigned i;
+
+            ret = make_node (RECORD_TYPE);
+            for (i = 0; i < fieldSize; i++)
+            {
+                mlir::Type elemTy = elemTypes[i];
+                auto ty = elemTy.dyn_cast<PluginTypeBase>();
+                tree elmType = translatePrimitiveType(ty);
+                fields[i] = build_decl (UNKNOWN_LOCATION, FIELD_DECL, get_identifier (elemNames[i].str().c_str()), elmType);
+                DECL_CONTEXT (fields[i]) = ret;
+                if (i) DECL_CHAIN (fields[i - 1]) = fields[i];
+            }
+            tree typeDecl = build_decl (input_location, TYPE_DECL, get_identifier (tyName.str().c_str()), ret);
+            DECL_ARTIFICIAL (typeDecl) = 1;
+            TYPE_FIELDS (ret) = fields[0];
+            TYPE_NAME (ret) = typeDecl;
+            layout_type (ret);
+            return ret;
+        }
         return NULL;
     }
-};
+}; // class TypeToPluginIRTranslatorImpl
 
 } // namespace Detail
 } // namespace PluginIR

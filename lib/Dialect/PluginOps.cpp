@@ -24,6 +24,7 @@
 
 #include "Dialect/PluginDialect.h"
 #include "Dialect/PluginOps.h"
+#include "Dialect/PluginTypes.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -32,13 +33,20 @@
 using namespace mlir;
 using namespace mlir::Plugin;
 
-void FunctionOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                       uint64_t id, StringRef funcName, bool declaredInline)
+void FunctionOp::build(OpBuilder &builder, OperationState &state,
+                       uint64_t id, StringRef funcName, bool declaredInline, Type type)
 {
-    FunctionOp::build(builder, state,
-        builder.getI64IntegerAttr(id),
-        builder.getStringAttr(funcName),
-        builder.getBoolAttr(declaredInline));
+    state.addRegion();
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("funcName", builder.getStringAttr(funcName));
+    state.addAttribute("declaredInline", builder.getBoolAttr(declaredInline));
+    if (type) state.addAttribute("type", TypeAttr::get(type));
+}
+
+Type FunctionOp::getResultType()
+{
+    PluginIR::PluginFunctionType resultType = type().dyn_cast<PluginIR::PluginFunctionType>();
+    return resultType;
 }
 
 void LocalDeclOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,

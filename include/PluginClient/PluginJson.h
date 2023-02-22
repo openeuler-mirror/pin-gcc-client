@@ -60,7 +60,7 @@ public:
     Json::Value MemOpJsonSerialize(mlir::Plugin::MemOp& data);
     Json::Value SSAOpJsonSerialize(mlir::Plugin::SSAOp& data);
     /* 将Type类型数据序列化 */
-    Json::Value TypeJsonSerialize(PluginIR::PluginTypeBase& type);
+    Json::Value TypeJsonSerialize(PluginIR::PluginTypeBase type);
     PluginIR::PluginTypeBase TypeJsonDeSerialize(const string& data, mlir::MLIRContext &context);
     /* 将整数型数据序列化 */
     void IntegerSerialize(int64_t data, string& out);

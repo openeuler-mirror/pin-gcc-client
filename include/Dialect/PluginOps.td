@@ -32,15 +32,19 @@ def FunctionOp : Plugin_Op<"function", [NoSideEffect]> {
 
   let arguments = (ins UI64Attr:$id,
                        StrAttr:$funcName,
-                       OptionalAttr<BoolAttr>:$declaredInline);
+                       OptionalAttr<BoolAttr>:$declaredInline,
+                       TypeAttr:$type);
   let regions = (region AnyRegion:$bodyRegion);
 
   // Add custom build methods for the operation. These method populates
   // the `state` that MLIR uses to create operations, i.e. these are used when
   // using `builder.create<Op>(...)`.
   let builders = [
-    OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$funcName, "bool":$declaredInline)>
+    OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$funcName, "bool":$declaredInline, "Type":$type)>
   ];
+  let extraClassDeclaration = [{
+    Type getResultType();
+  }];
 }
 
 def LocalDeclOp : Plugin_Op<"declaration", [NoSideEffect]> {

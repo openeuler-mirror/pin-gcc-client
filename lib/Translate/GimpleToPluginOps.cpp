@@ -546,9 +546,12 @@ FunctionOp GimpleToPluginOps::BuildFunctionOp(uint64_t functionId)
     bool declaredInline = false;
     if (DECL_DECLARED_INLINE_P(fn->decl))
         declaredInline = true;
+    tree returnType = TREE_TYPE(fn->decl);
+    PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
     auto location = builder.getUnknownLoc();
+    auto Ty = rPluginType.dyn_cast<PluginFunctionType>();
     FunctionOp retOp = builder.create<FunctionOp>(location, functionId,
-                                        funcName, declaredInline);
+                                        funcName, declaredInline, Ty);
     auto& fr = retOp.bodyRegion();
     if (fn->cfg == nullptr) return retOp;
     if (!ProcessBasicBlock((intptr_t)ENTRY_BLOCK_PTR_FOR_FN(fn), fr)) {
