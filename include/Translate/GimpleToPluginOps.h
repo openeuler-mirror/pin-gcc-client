@@ -92,6 +92,7 @@ public:
     PhiOp BuildPhiOp(uint64_t);
     mlir::Value GetGphiResult(uint64_t);
     mlir::Value BuildIntCst(mlir::Type, int64_t);
+    void GetTreeAttr(uint64_t, bool&, PluginTypeBase&);
     mlir::Value TreeToValue(uint64_t);
     void DebugValue(uint64_t);
     mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t);

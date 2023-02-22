@@ -843,13 +843,25 @@ Value GimpleToPluginOps::BuildIntCst(mlir::Type type, int64_t init)
     return TreeToValue(retId);
 }
 
-Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
+void GimpleToPluginOps::GetTreeAttr(uint64_t treeId, bool &readOnly, PluginTypeBase &rPluginType)
 {
     tree t = reinterpret_cast<tree>(treeId);
     tree treeType = TREE_TYPE(t);
-    bool readOnly = TYPE_READONLY(treeType);
+    if (treeType == NULL_TREE) return;
+    readOnly = TYPE_READONLY(treeType);
     uintptr_t typeId = reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(treeType));
-    PluginTypeBase rPluginType = typeTranslator.translateType(typeId);
+    rPluginType = typeTranslator.translateType(typeId);
+}
+
+Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
+{
+    tree t = reinterpret_cast<tree>(treeId);
+    bool readOnly = false;
+    PluginTypeBase rPluginType = PluginUndefType::get(builder.getContext());
+    if (t == NULL_TREE) {
+        return builder.create<PlaceholderOp>(builder.getUnknownLoc(),
+                    treeId, IDefineCode::UNDEF, readOnly, rPluginType);
+    }
     mlir::Value opValue;
     switch (TREE_CODE(t)) {
         case INTEGER_CST : {
@@ -863,6 +875,7 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             } else {
                 abort();
             }
+			GetTreeAttr(treeId, readOnly, rPluginType);
             opValue = builder.create<ConstOp>(
                     builder.getUnknownLoc(), treeId, IDefineCode::IntCST,
                     readOnly, initAttr, rPluginType);
@@ -873,6 +886,7 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             tree operand1 = TREE_OPERAND(t, 1);
             mlir::Value op0 = TreeToValue((uint64_t)operand0);
             mlir::Value op1 = TreeToValue((uint64_t)operand1);
+            GetTreeAttr(treeId, readOnly, rPluginType);
             opValue = builder.create<MemOp>(
                 builder.getUnknownLoc(), treeId, IDefineCode::MemRef, readOnly,
                 op0, op1, rPluginType);
@@ -886,13 +900,176 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             uint64_t version = SSA_NAME_VERSION(t);
             uint64_t definingId = reinterpret_cast<uint64_t>(SSA_NAME_DEF_STMT(t));
             uint64_t nameVarId = reinterpret_cast<uint64_t>(SSA_NAME_VAR(t));
+            GetTreeAttr(treeId, readOnly, rPluginType);
             opValue = builder.create<SSAOp>(builder.getUnknownLoc(), treeId,
                                          IDefineCode::SSA, readOnly,
                                          nameVarId, ssaParmDecl, version,
                                          definingId, rPluginType);
             break;
         }
+        case TREE_LIST : {
+            llvm::SmallVector<Value, 4> ops;
+            tree purpose = TREE_PURPOSE(t);
+            tree value = TREE_VALUE(t);
+            mlir::Value p = purpose == NULL_TREE ? nullptr : TreeToValue((uint64_t)purpose);
+            mlir::Value v = TreeToValue((uint64_t)value);
+            tree treeType = TREE_TYPE(value);
+            if (treeType) {
+                readOnly = TYPE_READONLY(treeType);
+                uintptr_t typeId = reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(treeType));
+                rPluginType = typeTranslator.translateType(typeId);
+            }
+            bool hasPurpose = false;
+            if (p) {
+                hasPurpose = true;
+                ops.push_back(p);
+            }
+            ops.push_back(v);
+            opValue = builder.create<ListOp>(builder.getUnknownLoc(), treeId,
+                                         IDefineCode::LIST, readOnly, hasPurpose,
+                                        ops, rPluginType);
+            break;
+        }
+        case STRING_CST : {
+            llvm::StringRef str = llvm::StringRef(TREE_STRING_POINTER(t), TREE_STRING_LENGTH(t));
+            tree treeType = TREE_TYPE(t);
+            if (treeType != NULL_TREE) {
+                readOnly = TYPE_READONLY(treeType);
+                uintptr_t typeId = reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(treeType));
+                rPluginType = typeTranslator.translateType(typeId);
+            }
+            opValue = builder.create<StrOp>(builder.getUnknownLoc(), treeId,
+                                            IDefineCode::StrCST, readOnly, str, rPluginType);
+            break;
+        }
+        case IDENTIFIER_NODE : {
+            llvm::StringRef str = llvm::StringRef(IDENTIFIER_POINTER(t), IDENTIFIER_LENGTH(t));
+            tree treeType = TREE_TYPE(t);
+            if (treeType != NULL_TREE) {
+                readOnly = TYPE_READONLY(treeType);
+                uintptr_t typeId = reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(treeType));
+                rPluginType = typeTranslator.translateType(typeId);
+            }
+            opValue = builder.create<StrOp>(builder.getUnknownLoc(), treeId,
+                                            IDefineCode::StrCST, readOnly, str, rPluginType);
+            break;
+        }
+        case ARRAY_REF : {
+            tree operand0 = TREE_OPERAND(t, 0);
+            tree operand1 = TREE_OPERAND(t, 1);
+            mlir::Value op0 = TreeToValue((uint64_t)operand0);
+            mlir::Value op1 = TreeToValue((uint64_t)operand1);
+            GetTreeAttr(treeId, readOnly, rPluginType);
+            opValue = builder.create<ArrayOp>(
+                builder.getUnknownLoc(), treeId, IDefineCode::ArrayRef, readOnly,
+                op0, op1, rPluginType);
+            break;
+        }
+        case VAR_DECL: {
+            bool addressable = TREE_ADDRESSABLE(t);
+            bool used = TREE_USED(t);
+            int32_t uid = DECL_UID(t);
+            mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(t));
+            mlir::Value name = TreeToValue((uint64_t)DECL_NAME(t));
+            llvm::Optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
+            GetTreeAttr(treeId, readOnly, rPluginType);
+            opValue = builder.create<DeclBaseOp>(
+                builder.getUnknownLoc(), treeId, IDefineCode::Decl, readOnly, addressable, used, uid, initial, name,
+                chain, rPluginType);
+            break;
+        }
+        case LABEL_DECL:
+        case FUNCTION_DECL:
+        case RESULT_DECL: 
+        case PARM_DECL: 
+        case TYPE_DECL: 
+        case TRANSLATION_UNIT_DECL : {
+            bool addressable = TREE_ADDRESSABLE(t);
+            bool used = TREE_USED(t);
+            int32_t uid = DECL_UID(t);
+            mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(t));
+            mlir::Value name = TreeToValue((uint64_t)DECL_NAME(t));
+            llvm::Optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
+            GetTreeAttr(treeId, readOnly, rPluginType);
+            opValue = builder.create<DeclBaseOp>(
+                builder.getUnknownLoc(), treeId, IDefineCode::Decl, readOnly, addressable, used, uid, initial, name,
+                chain, rPluginType);
+            break;
+        }
+        case FIELD_DECL : {
+            bool addressable = TREE_ADDRESSABLE(t);
+            bool used = TREE_USED(t);
+            int32_t uid = DECL_UID(t);
+            mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(t));
+            mlir::Value name = TreeToValue((uint64_t)DECL_NAME(t));
+            uint64_t chain = (uint64_t)DECL_CHAIN(t);
+            mlir::Value fieldOffset = TreeToValue((uint64_t)DECL_FIELD_OFFSET(t));
+            mlir::Value fieldBitOffset = TreeToValue((uint64_t)DECL_FIELD_BIT_OFFSET(t));
+            GetTreeAttr(treeId, readOnly, rPluginType);
+            opValue = builder.create<FieldDeclOp>(
+                builder.getUnknownLoc(), treeId, IDefineCode::FieldDecl, readOnly, addressable, used, uid, initial, name,
+                chain, fieldOffset, fieldBitOffset, rPluginType);
+            break;
+        }
+        case ADDR_EXPR : {
+            mlir::Value operand = TreeToValue((uint64_t)TREE_OPERAND (t, 0));
+            GetTreeAttr(treeId, readOnly, rPluginType);
+            opValue = builder.create<AddressOp>(
+                builder.getUnknownLoc(), treeId, IDefineCode::AddrExp, readOnly, operand, rPluginType);
+            break;
+        }
+        case CONSTRUCTOR : {
+            int32_t len = CONSTRUCTOR_NELTS(t);
+            llvm::SmallVector<Value, 4> idx, val;
+            unsigned HOST_WIDE_INT cnt;
+            tree index, value;
+            FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (t), cnt, index, value)
+            {
+                mlir::Value  eleIdx= TreeToValue((uint64_t)index);
+                mlir::Value  eleVal= TreeToValue((uint64_t)value);
+                idx.push_back(eleIdx);
+                val.push_back(eleVal);
+            }
+            GetTreeAttr(treeId, readOnly, rPluginType);
+            opValue = builder.create<ConstructorOp>(
+                builder.getUnknownLoc(), treeId, IDefineCode::Constructor, readOnly, len, idx, val, rPluginType);
+            break;
+        }
+        case TREE_VEC : {
+            int32_t len = TREE_VEC_LENGTH(t);
+            llvm::SmallVector<Value, 4> elements;
+
+            for (int i = 0; i < len; i++) {
+                mlir::Value ele = TreeToValue((uint64_t)TREE_VEC_ELT (t, i));
+                elements.push_back(ele);
+            }
+            GetTreeAttr(treeId, readOnly, rPluginType);
+            opValue = builder.create<VecOp>(
+                builder.getUnknownLoc(), treeId, IDefineCode::Vec, readOnly, len, elements, rPluginType);
+            break;
+        }
+        case BLOCK : {
+            llvm::Optional<mlir::Value> vars = TreeToValue((uint64_t)BLOCK_VARS(t));
+            llvm::Optional<uint64_t> supercontext = (uint64_t)BLOCK_SUPERCONTEXT(t);
+            llvm::Optional<mlir::Value> subblocks = TreeToValue((uint64_t)BLOCK_SUBBLOCKS(t));
+            llvm::Optional<mlir::Value> chain = TreeToValue((uint64_t)BLOCK_CHAIN(t));
+            llvm::Optional<mlir::Value> abstract_origin = TreeToValue((uint64_t)BLOCK_ABSTRACT_ORIGIN(t));
+            GetTreeAttr(treeId, readOnly, rPluginType);
+            opValue = builder.create<BlockOp>(
+                builder.getUnknownLoc(), treeId, IDefineCode::BLOCK, readOnly, vars, supercontext, subblocks,
+                chain, abstract_origin, rPluginType);
+            break;
+        }
+        case COMPONENT_REF : {
+            mlir::Value component = TreeToValue((uint64_t)TREE_OPERAND (t, 0));
+            mlir::Value field = TreeToValue((uint64_t)TREE_OPERAND (t, 1));
+            GetTreeAttr(treeId, readOnly, rPluginType);
+            opValue = builder.create<ComponentOp>(
+                builder.getUnknownLoc(), treeId, IDefineCode::COMPONENT, readOnly, component, field, rPluginType);
+            break;
+        }
         default: {
+            GetTreeAttr(treeId, readOnly, rPluginType);
             opValue = builder.create<PlaceholderOp>(builder.getUnknownLoc(),
                     treeId, IDefineCode::UNDEF, readOnly, rPluginType);
             break;

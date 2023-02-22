@@ -134,7 +134,186 @@ void PointerOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
     state.addAttribute("pointeeReadOnly", builder.getBoolAttr(pointeeReadOnly));
 }
 
-// ===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+// DeclBaseOp
+
+void DeclBaseOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                      IDefineCode defCode, bool readOnly, bool addressable, bool used, int32_t uid, Value initial,
+                      Value name, Optional<uint64_t> chain, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addAttribute("addressable", builder.getBoolAttr(addressable));
+    state.addAttribute("used", builder.getBoolAttr(used));
+    state.addAttribute("uid", builder.getI32IntegerAttr(uid));
+    state.addOperands(initial);
+    if(chain) {
+        state.addAttribute("chain", builder.getI64IntegerAttr(chain.getValue()));
+    }
+    state.addOperands(name);
+    state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// BlockOp
+
+void BlockOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                      IDefineCode defCode, bool readOnly, Optional<Value> vars, Optional<uint64_t> supercontext,
+                      Optional<Value> subblocks, Optional<Value> abstract_origin, Optional<Value> chain, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    if(vars) {
+        state.addOperands(vars.getValue());
+    }
+    if(supercontext) {
+        state.addAttribute("supercontext", builder.getI64IntegerAttr(supercontext.getValue()));
+    }
+    if(subblocks) {
+        state.addOperands(subblocks.getValue());
+    }
+    if(abstract_origin) {
+        state.addOperands(abstract_origin.getValue());
+    }
+    if(chain) {
+        state.addOperands(chain.getValue());
+    }
+    state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// VecOp
+
+void VecOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                      IDefineCode defCode, bool readOnly, int32_t len, ArrayRef<Value> elements, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addAttribute("len", builder.getI32IntegerAttr(len));
+    state.addOperands(elements);
+    state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// ConstructorOp
+
+void ConstructorOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                      IDefineCode defCode, bool readOnly, int32_t len, ArrayRef<Value> idx,
+                      ArrayRef<Value> val, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addAttribute("len", builder.getI32IntegerAttr(len));
+    state.addOperands(idx);
+    state.addOperands(val);
+
+    state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// FieldDeclOp
+
+void FieldDeclOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                      IDefineCode defCode, bool readOnly, bool addressable, bool used, int32_t uid, Value initial,
+                      Value name, uint64_t chain, Value fieldOffset, Value fieldBitOffset, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addAttribute("addressable", builder.getBoolAttr(addressable));
+    state.addAttribute("used", builder.getBoolAttr(used));
+    state.addAttribute("uid", builder.getI32IntegerAttr(uid));
+    state.addOperands(initial);
+    state.addAttribute("chain", builder.getI64IntegerAttr(chain));
+    state.addOperands(name);
+    state.addOperands({fieldOffset, fieldBitOffset});
+    state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// AddressOp
+
+void AddressOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                      IDefineCode defCode, bool readOnly, Value operand, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+        builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addOperands(operand);
+    state.addTypes(retType);
+}
+//===----------------------------------------------------------------------===//
+// ListOp
+
+void ListOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                  IDefineCode defCode, bool readOnly, bool hasPurpose,
+                ArrayRef<Value> operands, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+                       builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addAttribute("hasPurpose", builder.getBoolAttr(hasPurpose));
+    state.addOperands(operands);
+    state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// StrOp
+
+void StrOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                  IDefineCode defCode, bool readOnly, StringRef str, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("defCode",
+                       builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    state.addAttribute("str", builder.getStringAttr(str));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// ArrayOp
+
+void ArrayOp::build(OpBuilder &builder, OperationState &state,
+                  uint64_t id, IDefineCode defCode, bool readOnly,
+                  Value addr, Value offset, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addOperands({addr, offset});
+    state.addAttribute("defCode",
+                       builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+    if (retType) state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
+// ComponentOp
+
+void ComponentOp::build(OpBuilder &builder, OperationState &state,
+                  uint64_t id, IDefineCode defCode, bool readOnly,
+                  Value component, Value field, Type retType)
+{
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
+    state.addAttribute("defCode",
+                       builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
+
+    state.addOperands({component, field});
+    if (retType) state.addTypes(retType);
+}
+
+//===----------------------------------------------------------------------===//
 // CallOp
 
 void CallOp::build(OpBuilder &builder, OperationState &state,
