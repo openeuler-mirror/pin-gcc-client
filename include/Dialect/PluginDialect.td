@@ -70,10 +70,22 @@ def IComparisonAttr  : I32EnumAttr<
 def IDefineCodeMemRef    : I32EnumAttrCase<"MemRef", 0>;
 def IDefineCodeIntCST    : I32EnumAttrCase<"IntCST", 1>;
 def IDefineCodeSSA       : I32EnumAttrCase<"SSA", 2>;
-def IDefineCodeUNDEF     : I32EnumAttrCase<"UNDEF", 3>;
+def IDefineCodeLIST  : I32EnumAttrCase<"LIST", 3>;
+def IDefineCodeStrCST    : I32EnumAttrCase<"StrCST", 4>;
+def IDefineCodeArrayRef  : I32EnumAttrCase<"ArrayRef", 5>;
+def IDefineCodeDecl      : I32EnumAttrCase<"Decl", 6>;
+def IDefineCodeFieldDecl : I32EnumAttrCase<"FieldDecl", 7>;
+def IDefineCodeAddrExp   : I32EnumAttrCase<"AddrExp", 8>;
+def IDefineCodeConstructor  : I32EnumAttrCase<"Constructor", 9>;
+def IDefineCodeVec  : I32EnumAttrCase<"Vec", 10>;
+def IDefineCodeBLOCK  : I32EnumAttrCase<"BLOCK", 11>;
+def IDefineCodeCOMPONENT  : I32EnumAttrCase<"COMPONENT", 12>;
+def IDefineCodeUNDEF     : I32EnumAttrCase<"UNDEF", 13>;
 def IDefineCodeAttr  : I32EnumAttr<
    "IDefineCode", "plugin define code",
-   [IDefineCodeMemRef, IDefineCodeIntCST, IDefineCodeSSA, IDefineCodeUNDEF]>{
+   [IDefineCodeMemRef, IDefineCodeIntCST, IDefineCodeSSA, IDefineCodeLIST,
+   IDefineCodeStrCST, IDefineCodeArrayRef, IDefineCodeDecl, IDefineCodeFieldDecl, IDefineCodeAddrExp,
+   IDefineCodeConstructor, IDefineCodeVec, IDefineCodeBLOCK, IDefineCodeCOMPONENT, IDefineCodeUNDEF]>{
   let cppNamespace = "::mlir::Plugin";
 }
 

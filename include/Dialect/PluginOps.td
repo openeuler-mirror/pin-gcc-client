@@ -88,14 +88,14 @@ def CallOp : Plugin_Op<"call", [
     The callee name is attached as a symbol reference via an attribute.
     The arguments list must match the arguments expected by the callee.
   }];
-  let arguments = (ins UI64Attr:$id,
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address,
                        OptionalAttr<FlatSymbolRefAttr>:$callee,
                        Variadic<AnyType>:$inputs);
   let results = (outs Optional<AnyType>:$result);
   let builders = [
-    OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$callee,
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "StringRef":$callee,
                       "ArrayRef<Value>":$arguments, "Type":$retType)>,
-    OpBuilderDAG<(ins "uint64_t":$id,
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address,
                       "ArrayRef<Value>":$arguments,
                       "Type":$retType)>
   ];
@@ -144,7 +144,27 @@ def AssignOp : Plugin_Op<"assign", [NoSideEffect]> {
   // let printer = [{ return ::print(p, *this); }];
 }
 
-class Placeholder<string mnemonic> : Plugin_Op<mnemonic, [NoSideEffect]> {
+def NopOp : Plugin_Op<"nop", [NoSideEffect]> {
+  let summary = "nop";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id)>,
+  ];
+}
+
+def EHElseOp : Plugin_Op<"eh_else", [NoSideEffect]> {
+  let summary = "EHElseOP";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, ArrayAttr:$nBody, ArrayAttr:$eBody);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "ArrayRef<uint64_t>":$nBody, "ArrayRef<uint64_t>":$eBody)>,
+  ];
+}
+
+class Placeholder<string mnemonic> : Plugin_Op<mnemonic, [SameVariadicOperandSize]> {
   dag commonArgs = (ins UI64Attr:$id,
                         OptionalAttr<IDefineCodeAttr>:$defCode,
                         OptionalAttr<BoolAttr>:$readOnly);
@@ -174,11 +194,65 @@ class MemRef<string mnemonic> : Placeholder<mnemonic> {
     let arguments = !con(commonArgs, MemRefArgs);
 }
 
+class ComponentRef<string mnemonic> : Placeholder<mnemonic> {
+    dag ComponentRefArgs = (ins AnyType:$component,
+                          AnyType:$field);
+    let arguments = !con(commonArgs, ComponentRefArgs);
+}
+
 class Constant<string mnemonic> : Placeholder<mnemonic> {
     dag ConstArgs = (ins AnyAttr:$init);
     let arguments = !con(commonArgs, ConstArgs);
 }
 
+class List<string mnemonic> : Placeholder<mnemonic> {
+    dag ListArgs = (ins BoolAttr:$hasPurpose,
+                          Variadic<AnyType>:$operands);
+    let arguments = !con(commonArgs, ListArgs);
+}
+
+class StringCST<string mnemonic> : Placeholder<mnemonic> {
+    dag StringArgs = (ins StrAttr:$str);
+    let arguments = !con(commonArgs, StringArgs);
+}
+
+class ArrayRef<string mnemonic> : Placeholder<mnemonic> {
+    dag ArrayRefArgs = (ins AnyType:$base,
+                          AnyType:$offset);
+    let arguments = !con(commonArgs, ArrayRefArgs);
+}
+
+class DeclBase<string mnemonic> : Placeholder<mnemonic> {
+    dag DeclBaseArgs = (ins BoolAttr:$addressable, BoolAttr:$used, I32Attr:$uid, 
+                          AnyType:$initial, AnyType:$name, OptionalAttr<I64Attr>:$chain);
+    let arguments = !con(commonArgs, DeclBaseArgs);
+}
+
+class FieldDecl<string mnemonic> : DeclBase<mnemonic> {
+    dag FieldDeclArgs = (ins AnyType:$fieldOffset, AnyType:$fieldBitOffset);
+    let arguments = !con(commonArgs, DeclBaseArgs, FieldDeclArgs);
+}
+
+class Address<string mnemonic> : Placeholder<mnemonic> {
+  dag AddressArgs = (ins AnyType:$operand);
+  let arguments = !con(commonArgs, AddressArgs);
+}
+
+class Constructor<string mnemonic> : Placeholder<mnemonic> {
+  dag ConstructorArgs = (ins I32Attr:$len, Variadic<AnyType>:$idx, Variadic<AnyType>:$val);
+  let arguments = !con(commonArgs, ConstructorArgs);
+}
+
+class Vec<string mnemonic> : Placeholder<mnemonic> {
+  dag VecArgs = (ins I32Attr:$len, Variadic<AnyType>:$elements);
+  let arguments = !con(commonArgs, VecArgs);
+}
+
+class BLOCK<string mnemonic> : Placeholder<mnemonic> {
+  dag BLOCKArgs = (ins I32Attr:$len, Optional<AnyType>:$vars,  OptionalAttr<I64Attr>:$supercontext,
+                    Optional<AnyType>:$subblocks, Optional<AnyType>:$chain, Optional<AnyType>:$abstract_origin);
+  let arguments = !con(commonArgs, BLOCKArgs);
+}
 def PlaceholderOp : Placeholder<"palceholder"> {
   let summary = "PlaceHolder";
   let description = [{TODO}];
@@ -186,6 +260,110 @@ def PlaceholderOp : Placeholder<"palceholder"> {
     OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
                       "bool":$readOnly, "Type":$retType)>
   ];
+}
+
+def DeclBaseOp : DeclBase<"decl"> {
+  let summary = "DeclBaseOp";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+                      "bool":$readOnly, "bool":$addressable, "bool":$used, "int":$uid, "Value":$initial,
+                      "Value":$name, "Optional<uint64_t>":$chain, "Type":$retType)>
+  ];
+  let extraClassDeclaration = [{
+    Type getResultType() { return this->getOperation()->getResult(0).getType(); }
+    Value GetInitial() { return initial(); }
+    Value GetName() { return name(); }
+    Optional<uint64_t> GetChain() { return chain(); }
+  }];
+}
+
+def BlockOp : BLOCK<"block"> {
+  let summary = "BlockOp";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+                      "bool":$readOnly, "Optional<Value>":$vars, "Optional<uint64_t>":$supercontext,
+                      "Optional<Value>":$subblocks, "Optional<Value>":$chain,
+                      "Optional<Value>":$abstract_origin, "Type":$retType)>
+  ];
+  let extraClassDeclaration = [{
+    Type getResultType() { return this->getOperation()->getResult(0).getType(); }
+    Value GetVars() { return vars(); }
+    Optional<uint64_t> GetSupercontext() { return supercontext(); }
+    Value GetSubblocks() { return subblocks(); }
+    Value GetChain() { return chain(); }
+    Value GetAbstractorigin() { return abstract_origin(); }
+  }];
+}
+
+def VecOp : Vec<"Vector"> {
+  let summary = "VectorOp";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+                      "bool":$readOnly, "int":$len, "ArrayRef<Value>":$elements, "Type":$retType)>
+  ];
+}
+
+def FieldDeclOp : FieldDecl<"field"> {
+  let summary = "FieldDeclOp";
+  let description = [{TODO}];
+
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+                    "bool":$readOnly, "bool":$addressable, "bool":$used, "int":$uid, "Value":$initial,
+                    "Value":$name, "uint64_t":$chain, "Value":$fieldOffset, "Value":$fieldBitOffset, "Type":$retType)>
+];
+  let extraClassDeclaration = [{
+    Type getResultType() { return this->getOperation()->getResult(0).getType(); }
+    Value GetInitial() { return initial(); }
+    Value GetName() { return name(); }
+    Optional<uint64_t> GetChain() { return chain(); }
+    Value GetFieldOffset() { return fieldOffset(); }
+    Value GetFieldBitOffset() { return fieldBitOffset(); }
+  }];
+}
+
+def AddressOp : Address<"address"> {
+  let summary = "AddressOp";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+                    "bool":$readOnly, "Value":$operand, "Type":$retType)>
+];
+  let extraClassDeclaration = [{
+    Type getResultType() { return this->getOperation()->getResult(0).getType(); }
+    Value GetOperand() { return operand(); }
+  }];
+}
+
+def ConstructorOp : Constructor<"constructor"> {
+  let summary = "ConstructorOp";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode,
+                    "bool":$readOnly, "int32_t":$len, "ArrayRef<Value>":$idx, "ArrayRef<Value>":$val,
+                    "Type":$retType)>
+];
+  let extraClassDeclaration = [{
+    Type getResultType() { return this->getOperation()->getResult(0).getType(); }
+  }];
+}
+
+def ComponentOp : ComponentRef<"component"> {
+  let summary = "Component reference op";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,
+                      "Value":$component, "Value":$field, "Type":$retType)>
+  ];
+  let results = (outs AnyType);
+  let extraClassDeclaration = [{
+    Type getResultType() { return this->getOperation()->getResult(0).getType(); }
+    Value GetComponent() { return getOperand(0); }
+    Value GetField() { return getOperand(1); }
+  }];
 }
 
 def PointerOp : Pointer<"pointer"> {
@@ -232,6 +410,42 @@ def ConstOp : Constant<"constant value"> {
   ];
 }
 
+def ListOp : List<"ListOp"> {
+  let summary = "ListOp";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,
+                      "bool":$hasPurpose, "ArrayRef<Value>":$operands, "Type":$retType)>
+  ];
+  let results = (outs AnyType);
+  let extraClassDeclaration = [{
+    Type getResultType() { return this->getOperation()->getResult(0).getType(); }
+  }];
+}
+
+def StrOp : StringCST<"string"> {
+  let summary = "string";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,"StringRef":$str, "Type":$retType)>
+  ];
+}
+
+def ArrayOp : ArrayRef<"ArrayRef"> {
+  let summary = "array ref";
+  let description = [{TODO}];
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "IDefineCode":$defCode, "bool":$readOnly,
+                      "Value":$base, "Value":$offset, "Type":$retType)>
+  ];
+  let results = (outs AnyType);
+  let extraClassDeclaration = [{
+    Type getResultType() { return this->getOperation()->getResult(0).getType(); }
+    Value GetBase() { return getOperand(0); }
+    Value GetOffset() { return getOperand(1); }
+  }];
+}
+
 def BaseOp : Plugin_Op<"statement_base", [NoSideEffect]> {
   let summary = "Base operation, just like placeholder for statement.";
   let description = [{TODO}];
@@ -252,6 +466,113 @@ def DebugOp : Plugin_Op<"debug", [NoSideEffect]> {
   ];
 }
 
+def AsmOp : Plugin_Op<"asm", [NoSideEffect]> {
+  let summary = "asm Op";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, StrAttr:$statement, UI32Attr:$nInputs, UI32Attr:$nOutputs, UI32Attr:$nClobbers,
+                   Variadic<AnyType>:$operands);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "StringRef":$statement, "uint32_t":$nInputs, "uint32_t":$nOutputs,
+                  "uint32_t":$nClobbers, "ArrayRef<Value>":$operands)>
+  ];
+
+  let extraClassDeclaration = [{
+    unsigned GetNInputs() { return this->nInputsAttr().getInt(); };
+    unsigned GetNoutputs() { return this->nOutputsAttr().getInt(); };
+    unsigned GetNClobbers() { return this->nClobbersAttr().getInt(); };
+    Value GetInputOp(unsigned index) { return getOperand(index); };
+    Value GetOutputOp(unsigned index) { return getOperand(this->nInputsAttr().getInt() + index); };
+    Value GetCkobberOp(unsigned index) { 
+      return getOperand(this->nInputsAttr().getInt() + this->nOutputsAttr().getInt() + index); };
+  }]; 
+}
+
+def SwitchOp : Plugin_Op<"switch", [NoSideEffect]> {
+  let summary = "switch op.";
+  let description = [{TODO}];
+  let successors = (successor
+    AnySuccessor:$defaultDestination,
+    VariadicSuccessor<AnySuccessor>:$caseDestinations
+  );
+  let arguments = (ins UI64Attr:$id, AnyType:$index, UI64Attr:$address, AnyType:$defaultLabel, Variadic<AnyType>:$operands,
+                  UI64Attr:$defaultaddr, ArrayAttr:$caseaddrs);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$index, "uint64_t":$address, "Value":$defaultLabel,
+                      "ArrayRef<Value>":$operands, "Block*":$defaultDestination, "uint64_t":$defaultaddr,
+                      "ArrayRef<Block*>":$caseDestinations, "ArrayRef<uint64_t>":$caseaddrs)>
+  ];
+
+  let extraClassDeclaration = [{
+    unsigned GetNumLabels() { return getNumOperands() - 2; };
+    Block* GetDefautDest() { return defaultDestination();}
+    SmallVector<mlir::Block*> GetCaseDest() { return caseDestinations(); };
+  }];
+}
+
+def LabelOp : Plugin_Op<"label", [NoSideEffect]> {
+  let summary = "Label op.";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, AnyType:$index);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$index)>
+  ];
+  let extraClassDeclaration = [{
+    Value GetLabelLabel() { return this->getOperation()->getOperand(0); };
+  }];
+}
+
+def EHMntOp : Plugin_Op<"eh_mnt", [NoSideEffect]> {
+  let summary = "EH_MUST_NOT_THROW op.";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, AnyType:$decl);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$decl)>
+  ];
+  let extraClassDeclaration = [{
+    Value Getfndecl() { return decl(); };
+  }];
+}
+
+def BindOp : Plugin_Op<"Bind", [NoSideEffect]> {
+  let summary = "BindOp";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, AnyType:$vars, ArrayAttr:$body, AnyType:$block);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$vars, "ArrayRef<uint64_t>":$body, "Value":$block)>
+  ];
+  let extraClassDeclaration = [{
+    Value GetVars() { return vars(); };
+    Value GetBlock() { return block(); };
+  }];
+}
+
+def TryOp : Plugin_Op<"try", [NoSideEffect]> {
+  let summary = "TryOp";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, ArrayAttr:$eval, ArrayAttr:$cleanup, UI64Attr:$kind);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "ArrayRef<uint64_t>":$eval, "ArrayRef<uint64_t>":$cleanup, "uint64_t":$kind)>
+  ];
+}
+
+def CatchOp : Plugin_Op<"catch", [NoSideEffect]> {
+  let summary = "CatchOp";
+  let description = [{TODO}];
+  let results = (outs AnyType:$result);
+  let arguments = (ins UI64Attr:$id, AnyType:$types, ArrayAttr:$handler);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$types, "ArrayRef<uint64_t>":$handler)>
+  ];
+  let extraClassDeclaration = [{
+    Value GetTypes() { return types(); };
+  }];
+}
 // Terminators
 // Opaque builder used for terminator operations that contain successors.
 
@@ -303,4 +624,66 @@ def RetOp : Plugin_TerminatorOp<"ret", [NoSideEffect]> {
   ];
 }
 
+def GotoOp : Plugin_TerminatorOp<"goto", [NoSideEffect]> {
+  let summary = "GotoOp";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address, AnyType:$dest, UI64Attr:$successaddr);
+  let results = (outs AnyType);
+  let successors = (successor AnySuccessor:$success);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "Value":$dest, "Block*":$success, "uint64_t":$successaddr)>
+  ];
+
+  let extraClassDeclaration = [{
+    Value GetLabel() { return this->getOperation()->getOperand(0); }
+  }];
+}
+
+def TransactionOp : Plugin_TerminatorOp<"transaction", [NoSideEffect]> {
+  let summary = "TransactionOp";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address, ArrayAttr:$stmtaddr, AnyType:$labelNorm,
+                      AnyType:$labelUninst, AnyType:$labelOver, UI64Attr:$fallthroughaddr, UI64Attr:$abortaddr);
+  let results = (outs AnyType);
+  let successors = (successor AnySuccessor:$fallthrough, AnySuccessor:$abort);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "ArrayRef<uint64_t>":$stmtaddr, "Value":$labelNorm,
+                      "Value":$labelUninst, "Value":$labelOver, "Block*":$fallthrough, "uint64_t":$fallthroughaddr,
+                      "Block*":$abort, "uint64_t":$abortaddr)>
+  ];
+
+  let extraClassDeclaration = [{
+    Value GetTransactionNormal() { return labelNorm(); }
+    Value GetTransactionUinst() { return labelUninst(); }
+    Value GetTransactionOver() { return labelOver(); }
+  }];
+}
+
+def ResxOp : Plugin_TerminatorOp<"resx", [NoSideEffect]> {
+  let summary = "ResxOp";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address, UI64Attr:$region);
+  let results = (outs AnyType);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "uint64_t":$region)>
+  ];
+  let extraClassDeclaration = [{
+    uint64_t GetTransactionNormal() { return region(); }
+  }];
+}
+
+def EHDispatchOp : Plugin_TerminatorOp<"dispatch", [NoSideEffect]> {
+  let summary = "EHDispatchOp";
+  let description = [{TODO}];
+  let arguments = (ins UI64Attr:$id, UI64Attr:$address, UI64Attr:$region, ArrayAttr:$ehHandlersaddrs);
+  let results = (outs AnyType);
+  let successors = (successor VariadicSuccessor<AnySuccessor>:$ehHandlers);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "uint64_t":$address, "uint64_t":$region, "ArrayRef<Block*>":$ehHandlers,
+                  "ArrayRef<uint64_t>":$ehHandlersaddrs)>
+  ];
+  let extraClassDeclaration = [{
+    uint64_t GetTransactionNormal() { return region(); }
+  }];
+}
 #endif // PLUGIN_OPS_TD

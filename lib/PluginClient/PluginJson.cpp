@@ -227,8 +227,26 @@ void PluginJson::FunctionOpJsonSerialize(vector<FunctionOp>& data, string& out)
                     continue;
                 } else if (isa<ConstOp>(inst)) {
                     continue;
-                }
-                string opStr = "Operation" + std::to_string(opIdx++);
+                } else if (isa<ListOp>(inst)) {
+					continue;
+				} else if (isa<StrOp>(inst)) {
+					continue;
+				} else if (isa<ArrayOp>(inst)) {
+					continue;
+				} else if (isa<DeclBaseOp>(inst)) {
+					continue;
+				} else if (isa<FieldDeclOp>(inst)) {
+					continue;
+				} else if (isa<ConstructorOp>(inst)) {
+					continue;
+				} else if (isa<VecOp>(inst)) {
+					continue;
+				} else if (isa<BlockOp>(inst)) {
+					continue;
+				} else if (isa<AddressOp>(inst)) {
+					continue;
+				}
+				string opStr = "Operation" + std::to_string(opIdx++);
                 item["region"][blockStr]["ops"][opStr] = OperationJsonSerialize(&inst, bbAddress);
             }
             assert(bbAddress != 0);
@@ -248,6 +266,7 @@ Json::Value PluginJson::OperationJsonSerialize(mlir::Operation *operation, uint6
         root = AssignOpJsonSerialize(op);
     } else if (CallOp op = llvm::dyn_cast<CallOp>(operation)) {
         root = CallOpJsonSerialize(op);
+        bbId = op.addressAttr().getInt();
     } else if (CondOp op = llvm::dyn_cast<CondOp>(operation)) {
         root = CondOpJsonSerialize(op, bbId);
     } else if (PhiOp op = llvm::dyn_cast<PhiOp>(operation)) {
@@ -260,6 +279,32 @@ Json::Value PluginJson::OperationJsonSerialize(mlir::Operation *operation, uint6
         root = BaseOpJsonSerialize(op);
     } else if (DebugOp op = llvm::dyn_cast<DebugOp>(operation)) {
         root = DebugOpJsonSerialize(op);
+    } else if (AsmOp op = llvm::dyn_cast<AsmOp>(operation)) {
+        root = AsmOpJsonSerialize(op);
+    } else if (SwitchOp op = llvm::dyn_cast<SwitchOp>(operation)) {
+        root = SwitchOpJsonSerialize(op, bbId);
+    } else if (GotoOp op = llvm::dyn_cast<GotoOp>(operation)) {
+        root = GotoOpJsonSerialize(op, bbId);
+    } else if (LabelOp op = llvm::dyn_cast<LabelOp>(operation)) {
+        root = LabelOpJsonSerialize(op);
+    } else if (TransactionOp op = llvm::dyn_cast<TransactionOp>(operation)) {
+        root = TransactionOpJsonSerialize(op, bbId);
+    } else if (ResxOp op = llvm::dyn_cast<ResxOp>(operation)) {
+        root = ResxOpJsonSerialize(op, bbId);
+    } else if (EHMntOp op = llvm::dyn_cast<EHMntOp>(operation)) {
+        root = EHMntOpJsonSerialize(op);
+    } else if (EHDispatchOp op = llvm::dyn_cast<EHDispatchOp>(operation)) {
+        root = EHDispatchOpJsonSerialize(op, bbId);
+    } else if (BindOp op = llvm::dyn_cast<BindOp>(operation)) {
+        root = BindOpJsonSerialize(op);
+    } else if (TryOp op = llvm::dyn_cast<TryOp>(operation)) {
+        root = TryOpJsonSerialize(op);
+    } else if (CatchOp op = llvm::dyn_cast<CatchOp>(operation)) {
+        root = CatchOpJsonSerialize(op);
+    } else if (NopOp op = llvm::dyn_cast<NopOp>(operation)) {
+        root = NopOpJsonSerialize(op);
+    } else if (EHElseOp op = llvm::dyn_cast<EHElseOp>(operation)) {
+        root = EHElseOpJsonSerialize(op);
     }
     root["OperationName"] = operation->getName().getStringRef().str();
     return root;
@@ -420,8 +465,8 @@ Json::Value PluginJson::CallOpJsonSerialize(CallOp& data)
     Optional<StringRef> calleeName = data.callee();
     if (calleeName) {
         item["callee"] = calleeName->str();
-    }
-    item["OperationName"] = data.getOperation()->getName().getStringRef().str();
+    }    
+	item["OperationName"] = data.getOperation()->getName().getStringRef().str();
     size_t opIdx = 0;
     for (mlir::Value v : data.getArgOperands()) {
         string input = "input" + std::to_string(opIdx++);
@@ -504,6 +549,26 @@ Json::Value PluginJson::ValueJsonSerialize(mlir::Value data)
         root = MemOpJsonSerialize(mOp);
     } else if (SSAOp sOp = data.getDefiningOp<SSAOp>()) {
         root = SSAOpJsonSerialize(sOp);
+    } else if (ListOp sOp = data.getDefiningOp<ListOp>()) {
+        root = ListOpJsonSerialize(sOp);
+    } else if (StrOp sOp = data.getDefiningOp<StrOp>()) {
+        root = StrOpJsonSerialize(sOp);
+    } else if (ArrayOp sOp = data.getDefiningOp<ArrayOp>()) {
+        root = ArrayOpJsonSerialize(sOp);
+    } else if (DeclBaseOp sOp = data.getDefiningOp<DeclBaseOp>()) {
+        root = DeclBaseOpJsonSerialize(sOp);
+    } else if (FieldDeclOp sOp = data.getDefiningOp<FieldDeclOp>()) {
+        root = FieldDeclOpJsonSerialize(sOp);
+    } else if (AddressOp sOp = data.getDefiningOp<AddressOp>()) {
+        root = AddressOpJsonSerialize(sOp);
+    } else if (ComponentOp sOp = data.getDefiningOp<ComponentOp>()) {
+        root = ComponentOpJsonSerialize(sOp);
+    } else if (ConstructorOp sOp = data.getDefiningOp<ConstructorOp>()) {
+        root = ConstructorOpJsonSerialize(sOp);
+    } else if (VecOp sOp = data.getDefiningOp<VecOp>()) {
+        root = VecOpJsonSerialize(sOp);
+    } else if (BlockOp sOp = data.getDefiningOp<BlockOp>()) {
+        root = BlockOpJsonSerialize(sOp);
     } else if (PlaceholderOp phOp = data.getDefiningOp<PlaceholderOp>()) {
         root["id"] = std::to_string(phOp.idAttr().getInt());
         root["defCode"] = std::to_string(phOp.defCodeAttr().getInt());
@@ -542,5 +607,350 @@ void PluginJson::StringSerialize(const string& data, string& out)
     Json::Value root;
     root["stringData"] = data;
     out = root.toStyledString();
+}
+
+Json::Value PluginJson::AsmOpJsonSerialize(mlir::Plugin::AsmOp data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["statement"] = data.statementAttr().getValue().str().c_str();
+    root["nInputs"] = std::to_string(data.nInputsAttr().getInt());
+    root["nOutputs"] = std::to_string(data.nOutputsAttr().getInt());
+    root["nClobbers"] = std::to_string(data.nClobbersAttr().getInt());
+    size_t opIdx = 0;
+    for(mlir::Value v : data.operands()) {
+        string index = std::to_string(opIdx++);
+        root["operands"][index] = ValueJsonSerialize(v);
+    }
+    return root;
+}
+
+Json::Value PluginJson::SwitchOpJsonSerialize(mlir::Plugin::SwitchOp data, uint64_t &bbId)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    bbId = data.addressAttr().getInt();
+    size_t opIdx = 0;
+    for(mlir::Value v : data.operands()) {
+        string index = std::to_string(opIdx++);
+        root["operands"][index] = ValueJsonSerialize(v);
+    }
+    root["defaultaddr"] = std::to_string(data.defaultaddrAttr().getInt());
+    root["address"] = std::to_string(data.addressAttr().getInt());
+    int index = 0;
+    for (auto attr : data.caseaddrsAttr()) {
+        root["case"][index] = std::to_string(attr.dyn_cast<IntegerAttr>().getInt());
+    }
+    return root;
+}
+
+Json::Value PluginJson::ResxOpJsonSerialize(ResxOp data, uint64_t &bbId)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    bbId = data.addressAttr().getInt();
+    root["address"] = std::to_string(bbId);
+    root["region"] = std::to_string(data.regionAttr().getInt());
+    return root;
+}
+
+Json::Value PluginJson::BindOpJsonSerialize(BindOp data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["vars"] = ValueJsonSerialize(data.GetVars());
+    root["block"] = ValueJsonSerialize(data.GetBlock());
+    int index = 0;
+    for (auto attr : data.bodyAttr()) {
+        root["body"][index] = std::to_string(attr.dyn_cast<IntegerAttr>().getInt());
+    }
+    return root;
+}
+
+Json::Value PluginJson::TryOpJsonSerialize(TryOp data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    int index = 0;
+    for (auto attr : data.evalAttr()) {
+        root["eval"][index] = std::to_string(attr.dyn_cast<IntegerAttr>().getInt());
+    }
+    index = 0;
+    for (auto attr : data.cleanupAttr()) {
+        root["cleanup"][index] = std::to_string(attr.dyn_cast<IntegerAttr>().getInt());
+    }
+    root["kind"] = std::to_string(data.kindAttr().getInt());
+    return root;
+}
+
+Json::Value PluginJson::CatchOpJsonSerialize(CatchOp data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["types"] = ValueJsonSerialize(data.GetTypes());
+    int index = 0;
+    for (auto attr : data.handlerAttr()) {
+        root["handler"][index] = std::to_string(attr.dyn_cast<IntegerAttr>().getInt());
+    }
+    return root;
+}
+
+Json::Value PluginJson::EHDispatchOpJsonSerialize(EHDispatchOp data, uint64_t &bbId)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    bbId = data.addressAttr().getInt();
+    root["address"] = std::to_string(bbId);
+    root["region"] = std::to_string(data.regionAttr().getInt());
+    int index = 0;
+    for (auto attr : data.ehHandlersaddrsAttr()) {
+        root["ehHandlersaddrs"][index] = std::to_string(attr.dyn_cast<IntegerAttr>().getInt());
+    }
+    return root;
+}
+
+Json::Value PluginJson::GotoOpJsonSerialize(GotoOp data, uint64_t &bbId)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    bbId = data.addressAttr().getInt();
+    root["address"] = std::to_string(bbId);
+    root["dest"] = ValueJsonSerialize(data.GetLabel());
+    root["successaddr"] = std::to_string(data.successaddrAttr().getInt());
+    return root;
+}
+
+Json::Value PluginJson::TransactionOpJsonSerialize(TransactionOp data, uint64_t &bbId)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    bbId = data.addressAttr().getInt();
+    root["address"] = std::to_string(bbId);
+    int index = 0;
+    for (auto attr : data.stmtaddrAttr()) {
+        root["stmt"][index] = std::to_string(attr.dyn_cast<IntegerAttr>().getInt());
+    }
+    root["labelNorm"] = ValueJsonSerialize(data.GetTransactionNormal());
+    root["labelUninst"] = ValueJsonSerialize(data.GetTransactionUinst());
+    root["labelOver"] = ValueJsonSerialize(data.GetTransactionOver());
+
+    root["fallthroughaddr"] = std::to_string(data.fallthroughaddrAttr().getInt());
+    root["abortaddr"] = std::to_string(data.abortaddrAttr().getInt());
+    return root;
+}
+
+Json::Value PluginJson::LabelOpJsonSerialize(LabelOp data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["label"] = ValueJsonSerialize(data.GetLabelLabel());
+    return root;
+}
+
+Json::Value PluginJson::EHMntOpJsonSerialize(EHMntOp data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["decl"] = ValueJsonSerialize(data.Getfndecl());
+    return root;
+}
+
+Json::Value PluginJson::NopOpJsonSerialize(NopOp& data)
+{
+    Json::Value item;
+    item["id"] = std::to_string(data.idAttr().getInt());
+    return item;
+}
+
+Json::Value PluginJson::EHElseOpJsonSerialize(EHElseOp& data)
+{
+    Json::Value item;
+    item["id"] = std::to_string(data.idAttr().getInt());
+
+    int index = 0;
+    for (auto attr : data.nBodyAttr()) {
+        item["nbody"][index] = std::to_string(attr.dyn_cast<IntegerAttr>().getInt());
+    }
+    index = 0;
+    for (auto attr : data.eBodyAttr()) {
+        item["ebody"][index] = std::to_string(attr.dyn_cast<IntegerAttr>().getInt());
+    }
+    return item;
+}
+
+Json::Value PluginJson::ConstructorOpJsonSerialize(ConstructorOp& data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    root["len"] = std::to_string(data.lenAttr().getInt());
+    int32_t i = 0;
+    for (auto idx : data.idx()) {
+        root["idx"][i++] = ValueJsonSerialize(idx);
+    }
+    i = 0;
+    for (auto val : data.val()) {
+        root["val"][i] = ValueJsonSerialize(val);
+    }
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
+}
+
+Json::Value PluginJson::ListOpJsonSerialize(ListOp& data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    root["hasPurpose"] = std::to_string(data.hasPurposeAttr().getValue());
+    size_t opIdx = 0;
+    for (mlir::Value v : data.operands()) {
+        root["operands"][std::to_string(opIdx++)] = ValueJsonSerialize(v);
+    }
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
+}
+
+Json::Value PluginJson::StrOpJsonSerialize(StrOp& data)
+{
+    Json::Value item;
+    item["id"] = std::to_string(data.idAttr().getInt());
+    item["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    item["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    item["str"] = data.strAttr().getValue().str();
+    auto retTy = data.getType().dyn_cast<PluginIR::PluginTypeBase>();
+    item["retType"] = TypeJsonSerialize(retTy);
+    return item;
+}
+
+Json::Value PluginJson::ArrayOpJsonSerialize(ArrayOp& data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    mlir::Value base = data.GetBase();
+    mlir::Value offset = data.GetOffset();
+    root["base"] = ValueJsonSerialize(base);
+    root["offset"] = ValueJsonSerialize(offset);
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
+}
+
+Json::Value PluginJson::ComponentOpJsonSerialize(ComponentOp& data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    mlir::Value component = data.GetComponent();
+    mlir::Value field = data.GetField();
+    root["component"] = ValueJsonSerialize(component);
+    root["field"] = ValueJsonSerialize(field);
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
+}
+
+Json::Value PluginJson::DeclBaseOpJsonSerialize(DeclBaseOp& data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    root["addressable"] = std::to_string(data.addressableAttr().getValue());
+    root["used"] = std::to_string(data.usedAttr().getValue());
+    root["uid"] = std::to_string(data.uidAttr().getInt());
+    mlir::Value initial = data.GetInitial();
+    mlir::Value name = data.GetName();
+    if (data.GetChain()) {
+        root["chain"] = std::to_string(data.chain().getValue());
+    }
+    root["initial"] = ValueJsonSerialize(initial);
+    root["name"] = ValueJsonSerialize(name);
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
+}
+
+Json::Value PluginJson::BlockOpJsonSerialize(BlockOp& data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    if (data.GetVars()) {
+        root["vars"] = ValueJsonSerialize(data.GetVars());
+    }
+    if (data.GetSupercontext()) {
+        root["supercontext"] = std::to_string(data.GetSupercontext().getValue());
+    }
+    if (data.GetSubblocks()) {
+        root["subblocks"] = ValueJsonSerialize(data.GetSubblocks());
+    }
+    if (data.GetChain()) {
+        root["chain"] = ValueJsonSerialize(data.GetChain());
+    }
+    if (data.GetAbstractorigin()) {
+        root["abstract_origin"] = ValueJsonSerialize(data.GetAbstractorigin());
+    }
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
+}
+
+Json::Value PluginJson::VecOpJsonSerialize(VecOp& data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    root["len"] = std::to_string(data.lenAttr().getInt());
+    int index = 0;
+    for (auto ele : data.elements()) {
+        root["elements"][index] = ValueJsonSerialize(ele);
+    }
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
+}
+
+Json::Value PluginJson::FieldDeclOpJsonSerialize(FieldDeclOp& data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    mlir::Value initial = data.GetInitial();
+    mlir::Value name = data.GetName();
+    mlir::Value fieldOffset = data.GetFieldOffset();
+    mlir::Value fieldBitOffset = data.GetFieldBitOffset();
+    root["initial"] = ValueJsonSerialize(initial);
+    root["name"] = ValueJsonSerialize(name);
+    if (data.GetChain()) {
+        root["chain"] = std::to_string(data.chain().getValue());
+    }
+    root["fieldOffset"] = ValueJsonSerialize(fieldOffset);
+    root["fieldBitOffset"] = ValueJsonSerialize(fieldBitOffset);
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
+}
+
+Json::Value PluginJson::AddressOpJsonSerialize(AddressOp& data)
+{
+    Json::Value root;
+    root["id"] = std::to_string(data.idAttr().getInt());
+    root["defCode"] = std::to_string(data.defCodeAttr().getInt());
+    root["readOnly"] = std::to_string(data.readOnlyAttr().getValue());
+    mlir::Value operand = data.GetOperand();
+    root["operand"] = ValueJsonSerialize(operand);
+    auto retTy = data.getResultType().dyn_cast<PluginIR::PluginTypeBase>();
+    root["retType"] = TypeJsonSerialize(retTy);
+    return root;
 }
 } // namespace PinClient
