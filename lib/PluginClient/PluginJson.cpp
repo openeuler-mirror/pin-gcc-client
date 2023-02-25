@@ -77,6 +77,13 @@ Json::Value PluginJson::TypeJsonSerialize(PluginIR::PluginTypeBase type)
         }
     }
 
+    if (auto Ty = type.dyn_cast<PluginIR::PluginVectorType>()) {
+        auto elemTy = Ty.getElementType().dyn_cast<PluginIR::PluginTypeBase>();
+        item["elementType"] = TypeJsonSerialize(elemTy);
+        uint64_t elemNum = Ty.getNumElements();
+        item["vectorelemnum"] = std::to_string(elemNum);
+    }
+
     if (auto Ty = type.dyn_cast<PluginIR::PluginArrayType>()) {
         auto elemTy = Ty.getElementType().dyn_cast<PluginIR::PluginTypeBase>();
         item["elementType"] = TypeJsonSerialize(elemTy);

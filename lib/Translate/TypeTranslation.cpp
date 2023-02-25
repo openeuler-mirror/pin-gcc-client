@@ -84,6 +84,11 @@ private:
         return tree_to_shwi(TYPE_MAX_VALUE(TYPE_DOMAIN(type)))+1;
     }
 
+    unsigned getElemNum (tree type)
+    {
+        return TYPE_VECTOR_SUBPARTS(type).to_constant();
+    }
+
     llvm::SmallVector<Type> getArgsType (tree type)
     {
         tree parmlist = TYPE_ARG_TYPES (type);
@@ -168,6 +173,8 @@ private:
                 TYPE_READONLY(TREE_TYPE(type)) ? 1 : 0);
         if (TREE_CODE(type) == ARRAY_TYPE)
             return PluginArrayType::get(&context,translatePrimitiveType(TREE_TYPE(type)), getDomainIndex(type));
+        if (TREE_CODE(type) == VECTOR_TYPE)
+            return PluginArrayType::get(&context,translatePrimitiveType(TREE_TYPE(type)), getElemNum(type));
         if (TREE_CODE(type) == FUNCTION_TYPE) {
             llvm::SmallVector<Type> argsType = getArgsType(type);
             return PluginFunctionType::get(&context, translatePrimitiveType(TREE_TYPE(type)),argsType);
