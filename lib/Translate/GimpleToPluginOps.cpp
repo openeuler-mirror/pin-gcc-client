@@ -538,10 +538,10 @@ bool GimpleToPluginOps::IsWholeProgram()
 {
     return flag_whole_program;
 }
-
+static function *fn = nullptr;
 FunctionOp GimpleToPluginOps::BuildFunctionOp(uint64_t functionId)
 {
-    function *fn = reinterpret_cast<function*>(functionId);
+    fn = reinterpret_cast<function*>(functionId);
     mlir::StringRef funcName(function_name(fn));
     bool declaredInline = false;
     if (DECL_DECLARED_INLINE_P(fn->decl))
@@ -978,11 +978,15 @@ SwitchOp GimpleToPluginOps::BuildSwitchOp(uint64_t gswitchId)
     Block *defaultDest = bbTranslator->blockMaps[EDGE_SUCC(stmt->bb, 0)->dest];
     llvm::SmallVector<Block*, 4> caseDest;
     llvm::SmallVector<uint64_t, 4> caseaddr;
+
+    push_cfun(fn);
     for (int i = 1; i < nLabels; i++) {
-        Block *temp = bbTranslator->blockMaps[EDGE_SUCC(stmt->bb, i)->dest];
+        basic_block label_bb = gimple_switch_label_bb (cfun, stmt, i);
+        Block *temp = bbTranslator->blockMaps[label_bb];
+        caseaddr.push_back((uint64_t)label_bb);
         caseDest.push_back(temp);
-        caseaddr.push_back((uint64_t)(EDGE_SUCC(stmt->bb, i)->dest));
     }
+    pop_cfun();
     SwitchOp ret = builder.create<SwitchOp>(
             builder.getUnknownLoc(), gswitchId, index, (uint64_t)(stmt->bb), defaultLabel, ops, 
                 defaultDest, (uint64_t)(EDGE_SUCC(stmt->bb, 0)->dest), caseDest, caseaddr);
