@@ -81,7 +81,9 @@ private:
 
     unsigned getDomainIndex (tree type)
     {
-        return tree_to_shwi(TYPE_MAX_VALUE(TYPE_DOMAIN(type)))+1;
+        if (TYPE_DOMAIN(type) && TYPE_MAX_VALUE(TYPE_DOMAIN(type)))
+            return tree_to_shwi(TYPE_MAX_VALUE(TYPE_DOMAIN(type)))+1;
+        return 0;
     }
 
     unsigned getElemNum (tree type)
