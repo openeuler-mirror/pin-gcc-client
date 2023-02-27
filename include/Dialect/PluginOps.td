@@ -484,29 +484,6 @@ def AsmOp : Plugin_Op<"asm", [NoSideEffect]> {
   }]; 
 }
 
-def SwitchOp : Plugin_Op<"switch", [NoSideEffect]> {
-  let summary = "switch op.";
-  let description = [{TODO}];
-  let successors = (successor
-    AnySuccessor:$defaultDestination,
-    VariadicSuccessor<AnySuccessor>:$caseDestinations
-  );
-  let arguments = (ins UI64Attr:$id, AnyType:$index, UI64Attr:$address, AnyType:$defaultLabel, Variadic<AnyType>:$operands,
-                  UI64Attr:$defaultaddr, ArrayAttr:$caseaddrs);
-  let results = (outs AnyType:$result);
-  let builders = [
-    OpBuilderDAG<(ins "uint64_t":$id, "Value":$index, "uint64_t":$address, "Value":$defaultLabel,
-                      "ArrayRef<Value>":$operands, "Block*":$defaultDestination, "uint64_t":$defaultaddr,
-                      "ArrayRef<Block*>":$caseDestinations, "ArrayRef<uint64_t>":$caseaddrs)>
-  ];
-
-  let extraClassDeclaration = [{
-    unsigned GetNumLabels() { return getNumOperands() - 2; };
-    Block* GetDefautDest() { return defaultDestination();}
-    SmallVector<mlir::Block*> GetCaseDest() { return caseDestinations(); };
-  }];
-}
-
 def LabelOp : Plugin_Op<"label", [NoSideEffect]> {
   let summary = "Label op.";
   let description = [{TODO}];
@@ -574,6 +551,29 @@ def CatchOp : Plugin_Op<"catch", [NoSideEffect]> {
 
 class Plugin_TerminatorOp<string mnemonic, list<OpTrait> traits = []> :
     Plugin_Op<mnemonic, !listconcat(traits, [Terminator])>;
+
+def SwitchOp : Plugin_TerminatorOp<"switch", [NoSideEffect]> {
+  let summary = "switch op.";
+  let description = [{TODO}];
+  let successors = (successor
+    AnySuccessor:$defaultDestination,
+    VariadicSuccessor<AnySuccessor>:$caseDestinations
+  );
+  let arguments = (ins UI64Attr:$id, AnyType:$index, UI64Attr:$address, AnyType:$defaultLabel, Variadic<AnyType>:$operands,
+                  UI64Attr:$defaultaddr, ArrayAttr:$caseaddrs);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id, "Value":$index, "uint64_t":$address, "Value":$defaultLabel,
+                      "ArrayRef<Value>":$operands, "Block*":$defaultDestination, "uint64_t":$defaultaddr,
+                      "ArrayRef<Block*>":$caseDestinations, "ArrayRef<uint64_t>":$caseaddrs)>
+  ];
+
+  let extraClassDeclaration = [{
+    unsigned GetNumLabels() { return getNumOperands() - 2; };
+    Block* GetDefautDest() { return defaultDestination();}
+    SmallVector<mlir::Block*> GetCaseDest() { return caseDestinations(); };
+  }];
+}
 
 def FallThroughOp : Plugin_TerminatorOp<"fallthrough", [NoSideEffect]> {
   let summary = "FallThroughOp";
