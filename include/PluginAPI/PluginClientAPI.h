@@ -46,6 +46,8 @@ public:
     uint64_t RecomputeDominator(uint64_t, uint64_t) override;
 
     vector<FunctionOp> GetAllFunc() override;
+    vector<uint64_t> GetFunctions() override;
+    FunctionOp GetFunctionOpById(uint64_t) override;
     vector<LocalDeclOp> GetDecls(uint64_t funcID) override;
     vector<LoopOp> GetLoopsFromFunc(uint64_t) override;
     LoopOp GetLoopById(uint64_t) override;

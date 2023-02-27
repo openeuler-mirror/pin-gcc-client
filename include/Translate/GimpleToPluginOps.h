@@ -61,6 +61,8 @@ public:
     uint64_t GetImmediateDominator(uint64_t, uint64_t);
     uint64_t RecomputeDominator(uint64_t, uint64_t);
     vector<mlir::Plugin::FunctionOp> GetAllFunction();
+    vector<uint64_t> GetFunctionIDs();
+    mlir::Plugin::FunctionOp GetFunctionById(uint64_t);
     vector<mlir::Plugin::LocalDeclOp> GetAllDecls(uint64_t);
     vector<mlir::Plugin::LoopOp> GetAllLoops(uint64_t);
     LoopOp GetLoop(uint64_t);

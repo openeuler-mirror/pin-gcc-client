@@ -107,6 +107,33 @@ void GetAllFuncResult(PluginClient *client, Json::Value& root, string& result)
     client->ReceiveSendMsg("FuncOpResult", result);
 }
 
+void GetFunctionIDsResult(PluginClient *client, Json::Value& root, string& result)
+{
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    vector<uint64_t> ids = clientAPI.GetFunctions();
+    PluginJson json = client->GetJson();
+    json.IDsJsonSerialize(ids, result);
+    client->ReceiveSendMsg("IdsResult", result);
+}
+
+void GetFunctionOpByIdResult(PluginClient *client, Json::Value& root, string& result)
+{
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string funcIdKey = "id";
+    uint64_t funcID = atol(root[funcIdKey].asString().c_str());
+    vector<FunctionOp> allFuncOps;
+    allFuncOps.push_back(clientAPI.GetFunctionOpById(funcID));
+    PluginJson json = client->GetJson();
+    json.FunctionOpJsonSerialize(allFuncOps, result);
+    client->ReceiveSendMsg("FuncOpResult", result);
+}
+
 void GetLocalDeclsResult(PluginClient *client, Json::Value& root, string& result)
 {
     /// Json格式
@@ -280,9 +307,9 @@ void GetBlocksInLoopResult(PluginClient *client, Json::Value& root, string& resu
     PluginAPI::PluginClientAPI clientAPI(context);
     std::string loopIdKey = "loopId";
     uint64_t loopId = atol(root[loopIdKey].asString().c_str());
-    vector<uint64_t> blocks = clientAPI.GetBlocksInLoop(loopId);
+    vector<uint64_t> blockIDs = clientAPI.GetBlocksInLoop(loopId);
     PluginJson json = client->GetJson();
-    json.BlocksJsonSerialize(blocks, result);
+    json.IDsJsonSerialize(blockIDs, result);
     client->ReceiveSendMsg("IdsResult", result);
 }
 
@@ -841,6 +868,8 @@ void IsWholeProgramResult(PluginClient *client, Json::Value& root, string& resul
 typedef std::function<void(PluginClient*, Json::Value&, string&)> GetResultFunc;
 std::map<string, GetResultFunc> g_getResultFunc = {
     {"GetAllFunc", GetAllFuncResult},
+    {"GetFunctionIDs", GetFunctionIDsResult},
+    {"GetFunctionOpById", GetFunctionOpByIdResult},
     {"GetLocalDecls", GetLocalDeclsResult},
     {"GetLoopsFromFunc", GetLoopsFromFuncResult},
     {"GetLoopById", GetLoopByIdResult},

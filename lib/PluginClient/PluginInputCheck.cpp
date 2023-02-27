@@ -43,7 +43,6 @@ bool PluginInputCheck::ReadConfigfile(Json::Value& root)
     Json::Reader reader;
     std::ifstream ifs(configFilePath.c_str());
     if (!ifs.is_open()) {
-        LOGW("open %s fail! use default sha256file:%s\n", configFilePath.c_str(), shaPath.c_str());
         return false;
     }
 
@@ -92,12 +91,14 @@ int PluginInputCheck::GetInitInfo()
     if (root[jsonkey[TIMEOUT]].isInt()) {
         int timeoutJson = root[jsonkey[TIMEOUT]].asInt();
         SetTimeout(timeoutJson);
+    } else {
+        LOGW("timeout in config.json is not int or out of int range!use default:%d\n", timeout);
     }
 
     if (root[jsonkey[SHA256]].isString()) {
         shaPath = root[jsonkey[SHA256]].asString();
     } else {
-        LOGW("sha256file int config.json is not string!\n");
+        LOGW("sha256file in config.json is not string!\n");
     }
 
     if ((shaPath == "") || (CheckShaFile() != 0)) {

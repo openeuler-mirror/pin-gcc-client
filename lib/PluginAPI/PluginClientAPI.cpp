@@ -76,6 +76,16 @@ vector<FunctionOp> PluginClientAPI::GetAllFunc()
     return gimpleConversion.GetAllFunction();
 }
 
+vector<uint64_t> PluginClientAPI::GetFunctions()
+{
+    return gimpleConversion.GetFunctionIDs();
+}
+
+FunctionOp PluginClientAPI::GetFunctionOpById(uint64_t id)
+{
+    return gimpleConversion.GetFunctionById(id);
+}
+
 vector<LocalDeclOp> PluginClientAPI::GetDecls(uint64_t funcID)
 {
     return gimpleConversion.GetAllDecls(funcID);

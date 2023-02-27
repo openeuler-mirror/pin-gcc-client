@@ -330,6 +330,28 @@ vector<FunctionOp> GimpleToPluginOps::GetAllFunction()
     return functions;
 }
 
+vector<uint64_t> GimpleToPluginOps::GetFunctionIDs()
+{
+    cgraph_node *node = NULL;
+    function *fn = NULL;
+    vector<uint64_t> functions;
+    FOR_EACH_FUNCTION (node) {
+        fn = DECL_STRUCT_FUNCTION(node->decl);
+        if (fn == NULL)
+            continue;
+        int64_t id = reinterpret_cast<int64_t>(reinterpret_cast<void*>(fn));
+        functions.push_back(id);
+    }
+    return functions;
+}
+
+FunctionOp GimpleToPluginOps::GetFunctionById(uint64_t id)
+{
+    FunctionOp irFunc = BuildFunctionOp(id);
+    builder.setInsertionPointAfter(irFunc.getOperation());
+    return irFunc;
+}
+
 vector<LocalDeclOp> GimpleToPluginOps::GetAllDecls(uint64_t funcID)
 {
     function *fn = reinterpret_cast<function *>(funcID);
@@ -934,20 +956,20 @@ AsmOp GimpleToPluginOps::BuildAsmOp(uint64_t gasmId)
     uint32_t nOuputs = gimple_asm_noutputs(stmt);
     uint32_t nClobbers = gimple_asm_nclobbers(stmt);
 
-    for (int i = 0; i < nInputs; i++) {
+    for (size_t i = 0; i < nInputs; i++) {
         uint64_t input = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(gimple_asm_input_op(stmt, i)));
         Value tett = TreeToValue(input);
         ops.push_back(tett);
     }
 
-    for (int i = 0; i < nOuputs; i++) {
+    for (size_t i = 0; i < nOuputs; i++) {
         uint64_t input = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(gimple_asm_output_op(stmt, i)));
         ops.push_back(TreeToValue(input));
     }
 
-    for (int i = 0; i < nClobbers; i++) {
+    for (size_t i = 0; i < nClobbers; i++) {
         uint64_t input = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(gimple_asm_clobber_op(stmt, i)));
         ops.push_back(TreeToValue(input));
@@ -972,7 +994,7 @@ SwitchOp GimpleToPluginOps::BuildSwitchOp(uint64_t gswitchId)
     Value defaultLabel = TreeToValue(sDefault);
 
     unsigned nLabels = gimple_switch_num_labels(stmt);
-    for (int i = 1; i < nLabels; i++) {
+    for (size_t i = 1; i < nLabels; i++) {
         uint64_t input = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(gimple_switch_label(stmt, i)));
         ops.push_back(TreeToValue(input));
@@ -983,7 +1005,7 @@ SwitchOp GimpleToPluginOps::BuildSwitchOp(uint64_t gswitchId)
     llvm::SmallVector<uint64_t, 4> caseaddr;
 
     push_cfun(fn);
-    for (int i = 1; i < nLabels; i++) {
+    for (size_t i = 1; i < nLabels; i++) {
         basic_block label_bb = gimple_switch_label_bb (cfun, stmt, i);
         Block *temp = bbTranslator->blockMaps[label_bb];
         caseaddr.push_back((uint64_t)label_bb);

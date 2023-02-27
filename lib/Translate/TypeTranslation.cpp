@@ -148,7 +148,7 @@ private:
         StringRef name;
         for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
         {
-            if (TREE_CODE (field) == FIELD_DECL)
+            if (TREE_CODE (field) == FIELD_DECL && DECL_NAME(field))
             {
                 name = IDENTIFIER_POINTER ( DECL_NAME(field));
                 names.push_back(name);
