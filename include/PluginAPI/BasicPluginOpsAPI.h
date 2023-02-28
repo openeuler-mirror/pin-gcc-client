@@ -55,6 +55,8 @@ public:
     virtual uint64_t GetImmediateDominator(uint64_t, uint64_t) = 0;
     virtual uint64_t RecomputeDominator(uint64_t, uint64_t) = 0;
     virtual vector<FunctionOp> GetAllFunc() = 0;
+    virtual vector<uint64_t> GetFunctions() = 0;
+    virtual FunctionOp GetFunctionOpById(uint64_t) = 0;
     virtual vector<LocalDeclOp> GetDecls(uint64_t funcID) = 0;
     virtual vector<LoopOp> GetLoopsFromFunc(uint64_t) = 0;
     virtual LoopOp GetLoopById(uint64_t) = 0;

@@ -401,16 +401,16 @@ void PluginJson::LoopOpJsonSerialize(mlir::Plugin::LoopOp& loop, string& out)
     out = root.toStyledString();
 }
 
-void PluginJson::BlocksJsonSerialize(vector<uint64_t>& blocks, string& out)
+void PluginJson::IDsJsonSerialize(vector<uint64_t>& ids, string& out)
 {
     Json::Value root;
     Json::Value item;
     int i = 0;
     string index;
 
-    for (auto& block : blocks) {
-        item["id"] = std::to_string(block);
-        index = "block" + std::to_string(i++);
+    for (auto& id : ids) {
+        item["id"] = std::to_string(id);
+        index = "ID" + std::to_string(i++);
         root[index] = item;
         item.clear();
     }

@@ -40,7 +40,7 @@ public:
     void OpJsonSerialize(vector<mlir::Plugin::FunctionOp>& data, string& out);
     void LoopOpsJsonSerialize(vector<mlir::Plugin::LoopOp>& loops, string& out);
     void LoopOpJsonSerialize(mlir::Plugin::LoopOp& loop, string& out);
-    void BlocksJsonSerialize(vector<uint64_t>&, string&);
+    void IDsJsonSerialize(vector<uint64_t>&, string&);
     void EdgesJsonSerialize(vector<std::pair<uint64_t, uint64_t> >&, string&);
     void EdgeJsonSerialize(std::pair<uint64_t, uint64_t>&, string&);
     void NopJsonSerialize(string&);
