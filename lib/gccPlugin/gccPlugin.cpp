@@ -159,11 +159,11 @@ public:
     SimpleIPAPass(pass_data passData, unsigned int indx): simple_ipa_opt_pass(passData, g), index(indx)
     {
     }
-    /* unsigned int execute(function *fun) override
+    unsigned int execute(function *fun) override
     {
         ManagerSetupCallback(index, fun);
         return 0;
-    } */
+    }
 
 private:
     unsigned int index;
@@ -193,6 +193,7 @@ static std::map<RefPassName, string> g_refPassName {
     {PASS_PHIOPT, "phiopt"},
     {PASS_SSA, "ssa"},
     {PASS_LOOP, "loop"},
+    {PASS_MAC, "materialize-all-clones"},
 };
 
 void RegisterPassManagerSetup(unsigned int index, const ManagerSetupData& setupData, const string& pluginName)
@@ -231,6 +232,9 @@ void RegisterPassManagerSetup(unsigned int index, const ManagerSetupData& setupD
             passData.type = GIMPLE_PASS;
             passInfo.pass = new GimplePass(passData, index);
             break;
+        case PASS_MAC:
+            passData.type = SIMPLE_IPA_PASS;
+            passInfo.pass = new SimpleIPAPass(passData, index);
         default:
             passInfo.pass = new GimplePass(passData, index);
             break;
