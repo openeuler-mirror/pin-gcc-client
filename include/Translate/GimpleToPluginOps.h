@@ -60,6 +60,13 @@ public:
     void SetImmediateDominator(uint64_t, uint64_t, uint64_t);
     uint64_t GetImmediateDominator(uint64_t, uint64_t);
     uint64_t RecomputeDominator(uint64_t, uint64_t);
+
+    // CGnode
+    vector<uint64_t> GetCGnodeIDs();
+    mlir::Plugin::CGnodeOp GetCGnodeOpById(uint64_t);
+    CGnodeOp BuildCGnodeOp(uint64_t);
+    bool IsRealSymbolOfCGnode(uint64_t);
+
     vector<mlir::Plugin::FunctionOp> GetAllFunction();
     vector<uint64_t> GetFunctionIDs();
     mlir::Plugin::FunctionOp GetFunctionById(uint64_t);

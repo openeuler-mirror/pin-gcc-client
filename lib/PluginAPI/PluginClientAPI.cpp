@@ -71,6 +71,22 @@ uint64_t PluginClientAPI::RecomputeDominator(uint64_t dir, uint64_t bbAddr)
     return gimpleConversion.RecomputeDominator(dir, bbAddr);
 }
 
+// CGnode
+vector<uint64_t> PluginClientAPI::GetCGnodeIDs()
+{
+    return gimpleConversion.GetCGnodeIDs();
+}
+
+CGnodeOp PluginClientAPI::GetCGnodeOpById(uint64_t id)
+{
+    return gimpleConversion.GetCGnodeOpById(id);
+}
+
+bool PluginClientAPI::IsRealSymbolOfCGnode(uint64_t id)
+{
+    return gimpleConversion.IsRealSymbolOfCGnode(id);
+}
+
 vector<FunctionOp> PluginClientAPI::GetAllFunc()
 {
     return gimpleConversion.GetAllFunction();

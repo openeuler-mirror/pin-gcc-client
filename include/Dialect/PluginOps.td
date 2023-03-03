@@ -24,6 +24,29 @@ include "PluginDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 
+def CGnodeOp : Plugin_Op<"callgraphnode", [NoSideEffect]> {
+  let summary = "callgraph node operation";
+  let description = [{
+    TODO.
+  }];
+
+  let arguments = (ins UI64Attr:$id,
+                       StrAttr:$symbolName,
+                       OptionalAttr<BoolAttr>:$definition,
+                       UI32Attr:$order);
+  let regions = (region AnyRegion:$bodyRegion);
+
+  // Add custom build methods for the operation. These method populates
+  // the `state` that MLIR uses to create operations, i.e. these are used when
+  // using `builder.create<Op>(...)`.
+  let builders = [
+    OpBuilderDAG<(ins "uint64_t":$id,
+                      "StringRef":$symbolName,
+                      "bool":$definition,
+                      "uint32_t":$order)>
+  ];
+}
+
 def FunctionOp : Plugin_Op<"function", [NoSideEffect]> {
   let summary = "function with a region";
   let description = [{

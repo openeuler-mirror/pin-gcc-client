@@ -49,6 +49,10 @@ public:
     virtual int GetDeclSourceLine(uint64_t gccDataAddr) = 0;
     virtual int GetDeclSourceColumn(uint64_t gccDataAddr) = 0;
 
+    // CGnode
+    virtual vector<uint64_t> GetCGnodeIDs() = 0;
+    virtual CGnodeOp GetCGnodeOpById(uint64_t) = 0;
+
     virtual uint64_t CreateBlock(uint64_t, uint64_t) = 0;
     virtual void DeleteBlock(uint64_t, uint64_t) = 0;
     virtual void SetImmediateDominator(uint64_t, uint64_t, uint64_t) = 0;

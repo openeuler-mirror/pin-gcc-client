@@ -95,6 +95,48 @@ void PluginClient::GetGccData(const string& funcName, const string& param, strin
     }
 }
 
+// CGnode ============
+
+void GetCGnodeIDsResult(PluginClient *client, Json::Value& root, string& result)
+{
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    vector<uint64_t> ids = clientAPI.GetCGnodeIDs();
+    PluginJson json = client->GetJson();
+    json.IDsJsonSerialize(ids, result);
+    client->ReceiveSendMsg("IdsResult", result);
+}
+
+void GetCGnodeOpByIdResult(PluginClient *client, Json::Value& root, string& result)
+{
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string funcIdKey = "id";
+    uint64_t cgnodeID = atol(root[funcIdKey].asString().c_str());
+    CGnodeOp cgnodeOp = clientAPI.GetCGnodeOpById(cgnodeID);
+    PluginJson json = client->GetJson();
+    json.CGnodeOpJsonSerialize(cgnodeOp, result);
+    client->ReceiveSendMsg("CGnodeOpResult", result);
+}
+
+void IsRealSymbolOfCGnodeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string funcIdKey = "id";
+    uint64_t cgnodeID = atol(root[funcIdKey].asString().c_str());
+    bool realsymbol = clientAPI.IsRealSymbolOfCGnode(cgnodeID);
+    client->ReceiveSendMsg("BoolResult", std::to_string(realsymbol));
+}
+
+// ===================
+
 void GetAllFuncResult(PluginClient *client, Json::Value& root, string& result)
 {
     // Load our Dialect in this MLIR Context.
@@ -867,6 +909,9 @@ void IsWholeProgramResult(PluginClient *client, Json::Value& root, string& resul
 
 typedef std::function<void(PluginClient*, Json::Value&, string&)> GetResultFunc;
 std::map<string, GetResultFunc> g_getResultFunc = {
+    {"GetCGnodeIDs", GetCGnodeIDsResult},
+    {"GetCGnodeOpById", GetCGnodeOpByIdResult},
+    {"IsRealSymbolOfCGnode", IsRealSymbolOfCGnodeResult},
     {"GetAllFunc", GetAllFuncResult},
     {"GetFunctionIDs", GetFunctionIDsResult},
     {"GetFunctionOpById", GetFunctionOpByIdResult},

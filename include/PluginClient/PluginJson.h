@@ -37,6 +37,9 @@ using std::vector;
 
 class PluginJson {
 public:
+    // CGnodeOp
+    void CGnodeOpJsonSerialize(mlir::Plugin::CGnodeOp& cgnode, string& out);
+
     void OpJsonSerialize(vector<mlir::Plugin::FunctionOp>& data, string& out);
     void LoopOpsJsonSerialize(vector<mlir::Plugin::LoopOp>& loops, string& out);
     void LoopOpJsonSerialize(mlir::Plugin::LoopOp& loop, string& out);

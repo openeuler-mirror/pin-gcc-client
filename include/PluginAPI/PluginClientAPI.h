@@ -45,6 +45,11 @@ public:
     uint64_t GetImmediateDominator(uint64_t, uint64_t) override;
     uint64_t RecomputeDominator(uint64_t, uint64_t) override;
 
+    // CGnode
+    vector<uint64_t> GetCGnodeIDs() override;
+    CGnodeOp GetCGnodeOpById(uint64_t) override;
+    bool IsRealSymbolOfCGnode(uint64_t);
+    
     vector<FunctionOp> GetAllFunc() override;
     vector<uint64_t> GetFunctions() override;
     FunctionOp GetFunctionOpById(uint64_t) override;

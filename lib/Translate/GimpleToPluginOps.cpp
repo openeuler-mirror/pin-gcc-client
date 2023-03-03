@@ -313,6 +313,52 @@ uint64_t GimpleToPluginOps::RecomputeDominator(uint64_t dir, uint64_t bbAddr)
     abort();
 }
 
+// CGnode =========
+
+CGnodeOp GimpleToPluginOps::BuildCGnodeOp(uint64_t id)
+{
+    cgraph_node *node;
+    node = reinterpret_cast<cgraph_node *>(id);
+    fprintf(stderr, "dgy client BuildCGnodeOp id : %lld\n", id);
+    fprintf(stderr, "dgy client BuildCGnodeOp node name is : %s/%d\n", node->name(), node->order);
+    mlir::StringRef symbolName(node->name());
+    bool definition = false;
+    if (node->definition)
+        definition = true;
+    uint32_t order = node->order;
+    auto location = builder.getUnknownLoc();
+    CGnodeOp retOp = builder.create<CGnodeOp>(location, id, symbolName, definition, order);
+    return retOp;
+}
+
+vector<uint64_t> GimpleToPluginOps::GetCGnodeIDs()
+{
+    cgraph_node *node = NULL;
+    vector<uint64_t> cgnodeIDs;
+    FOR_EACH_FUNCTION (node) {
+        int64_t id = reinterpret_cast<int64_t>(reinterpret_cast<void*>(node));
+        fprintf(stderr, "dgy client GetCGnodeIDs id : %lld\n", id);
+        fprintf(stderr, "dgy client GetCGnodeIDs node name is : %s/%d\n", node->name(), node->order);
+        cgnodeIDs.push_back(id);
+    }
+    return cgnodeIDs;
+}
+
+CGnodeOp GimpleToPluginOps::GetCGnodeOpById(uint64_t id)
+{
+    CGnodeOp cgOp = BuildCGnodeOp(id);
+    return cgOp;
+}
+
+bool GimpleToPluginOps::IsRealSymbolOfCGnode(uint64_t id)
+{
+    cgraph_node *node;
+    node = reinterpret_cast<cgraph_node *>(id);
+    return node->real_symbol_p();
+}
+
+//=================
+
 vector<FunctionOp> GimpleToPluginOps::GetAllFunction()
 {
     cgraph_node *node = NULL;

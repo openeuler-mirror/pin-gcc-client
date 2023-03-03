@@ -195,6 +195,24 @@ PluginIR::PluginTypeBase PluginJson::TypeJsonDeSerialize(const string& data, mli
     return baseType;
 }
 
+void PluginJson::CGnodeOpJsonSerialize(CGnodeOp& cgnode, string& out)
+{
+    Json::Value root;
+    Json::Value operationObj;
+    Json::Value item;
+
+    root["id"] = std::to_string(cgnode.idAttr().getInt());
+    root["attributes"]["order"] = std::to_string(cgnode.orderAttr().getInt());
+    if (cgnode.definitionAttr().getValue()) {
+        root["attributes"]["definition"] = "1";
+    }else {
+        root["attributes"]["definition"] = "0";
+    }
+    root["attributes"]["symbolName"] = cgnode.symbolNameAttr().getValue().str().c_str();
+    fprintf(stderr, "dgy client cgnode json %s\n", root.toStyledString().c_str());
+    out = root.toStyledString();
+}
+
 void PluginJson::FunctionOpJsonSerialize(vector<FunctionOp>& data, string& out)
 {
     Json::Value root;
