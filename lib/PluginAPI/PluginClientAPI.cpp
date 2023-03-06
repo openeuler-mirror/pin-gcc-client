@@ -107,6 +107,96 @@ vector<LocalDeclOp> PluginClientAPI::GetDecls(uint64_t funcID)
     return gimpleConversion.GetAllDecls(funcID);
 }
 
+vector<DeclBaseOp> PluginClientAPI::GetFuncDecls(uint64_t funcID)
+{
+    return gimpleConversion.GetFuncDecls(funcID);
+}
+
+vector<FieldDeclOp> PluginClientAPI::GetFields(uint64_t declID)
+{
+    return gimpleConversion.GetFields(declID);
+}
+
+mlir::Value PluginClientAPI::MakeNode(IDefineCode code)
+{
+    return gimpleConversion.MakeNode(code);
+}
+
+DeclBaseOp PluginClientAPI::BuildDecl(IDefineCode code, string name, PluginTypeBase type)
+{
+    return gimpleConversion.BuildDecl(code, name, type);
+}
+
+void PluginClientAPI::SetDeclName(uint64_t newfieldId, uint64_t fieldId)
+{
+    gimpleConversion.SetDeclName(newfieldId, fieldId);
+}
+
+void PluginClientAPI::SetDeclType(uint64_t newfieldId, uint64_t fieldId)
+{
+    gimpleConversion.SetDeclType(newfieldId, fieldId);
+}
+
+void PluginClientAPI::SetDeclAlign(uint64_t newfieldId, uint64_t fieldId)
+{
+    gimpleConversion.SetDeclAlign(newfieldId, fieldId);
+}
+
+void PluginClientAPI::SetUserAlign(uint64_t newfieldId, uint64_t fieldId)
+{
+    gimpleConversion.SetUserAlign(newfieldId, fieldId);
+}
+
+void PluginClientAPI::SetDeclChain(uint64_t newfieldId, uint64_t fieldId)
+{
+    gimpleConversion.SetDeclChain(newfieldId, fieldId);
+}
+
+unsigned PluginClientAPI::GetDeclTypeSize(uint64_t declId)
+{
+    gimpleConversion.GetDeclTypeSize(declId);
+}
+
+void PluginClientAPI::SetSourceLocation(uint64_t newfieldId, uint64_t fieldId)
+{
+    gimpleConversion.SetSourceLocation(newfieldId, fieldId);
+}
+
+void PluginClientAPI::SetAddressable(uint64_t newfieldId, uint64_t fieldId)
+{
+    gimpleConversion.SetAddressable(newfieldId, fieldId);
+}
+
+void PluginClientAPI::SetNonAddressablep(uint64_t newfieldId, uint64_t fieldId)
+{
+    gimpleConversion.SetNonAddressablep(newfieldId, fieldId);
+}
+
+void PluginClientAPI::SetVolatile(uint64_t newfieldId, uint64_t fieldId)
+{
+    gimpleConversion.SetVolatile(newfieldId, fieldId);
+}
+
+void PluginClientAPI::SetDeclContext(uint64_t newfieldId, uint64_t declId)
+{
+    gimpleConversion.SetDeclContext(newfieldId, declId);
+}
+
+void PluginClientAPI::SetTypeFields(uint64_t declId, uint64_t fieldId)
+{
+    gimpleConversion.SetTypeFields(declId, fieldId);
+}
+
+void PluginClientAPI::LayoutType(uint64_t declId)
+{
+    gimpleConversion.LayoutType(declId);
+}
+
+void PluginClientAPI::LayoutDecl(uint64_t declId)
+{
+    gimpleConversion.LayoutDecl(declId);
+}
+
 vector<LoopOp> PluginClientAPI::GetLoopsFromFunc(uint64_t funcID)
 {
     return gimpleConversion.GetAllLoops(funcID);

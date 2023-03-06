@@ -54,6 +54,28 @@ public:
     vector<uint64_t> GetFunctions() override;
     FunctionOp GetFunctionOpById(uint64_t) override;
     vector<LocalDeclOp> GetDecls(uint64_t funcID) override;
+    vector<DeclBaseOp> GetFuncDecls(uint64_t funcID) override;
+    vector<FieldDeclOp> GetFields(uint64_t declID) override;
+    DeclBaseOp BuildDecl(IDefineCode, string, PluginTypeBase) override;
+
+    mlir::Value MakeNode(IDefineCode) override;
+    void SetDeclName(uint64_t, uint64_t) override;
+    void SetDeclType(uint64_t, uint64_t) override;
+    void SetDeclAlign(uint64_t newfieldId, uint64_t fieldId) override;
+    void SetUserAlign(uint64_t newfieldId, uint64_t fieldId) override;
+    void SetSourceLocation(uint64_t newfieldId, uint64_t fieldId) override;
+    void SetAddressable(uint64_t newfieldId, uint64_t fieldId) override;
+    void SetNonAddressablep(uint64_t newfieldId, uint64_t fieldId) override;
+    void SetVolatile(uint64_t newfieldId, uint64_t fieldId) override;
+    void SetDeclContext(uint64_t newfieldId, uint64_t declId) override;
+    void SetDeclChain(uint64_t newfieldId, uint64_t fieldId) override;
+
+    unsigned GetDeclTypeSize(uint64_t declId) override;
+
+    void SetTypeFields(uint64_t declId, uint64_t fieldId) override;
+    void LayoutType(uint64_t declId) override;
+    void LayoutDecl(uint64_t declId) override;
+
     vector<LoopOp> GetLoopsFromFunc(uint64_t) override;
     LoopOp GetLoopById(uint64_t) override;
     bool IsBlockInside(uint64_t, uint64_t) override;

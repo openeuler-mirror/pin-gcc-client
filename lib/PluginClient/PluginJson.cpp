@@ -387,6 +387,40 @@ void PluginJson::LocalDeclsJsonSerialize(vector<LocalDeclOp>& decls, string& out
     out = root.toStyledString();
 }
 
+void PluginJson::FunctionDeclsJsonSerialize(vector<mlir::Plugin::DeclBaseOp>& decls, string& out)
+{
+    Json::Value root;
+    Json::Value operationObj;
+    Json::Value item;
+    int i = 0;
+    string operation;
+
+    for (auto& decl: decls) {
+        item = DeclBaseOpJsonSerialize(decl);
+        operation = std::to_string(i++);
+        root[operation] = item;
+        item.clear();
+    }
+    out = root.toStyledString();
+}
+
+void PluginJson::FiledOpsJsonSerialize(vector<mlir::Plugin::FieldDeclOp>& decls, string& out)
+{
+    Json::Value root;
+    Json::Value operationObj;
+    Json::Value item;
+    int i = 0;
+    string operation;
+
+    for (auto& decl: decls) {
+        item = FieldDeclOpJsonSerialize(decl);
+        operation = std::to_string(i++);
+        root[operation] = item;
+        item.clear();
+    }
+    out = root.toStyledString();
+}
+
 void PluginJson::LoopOpsJsonSerialize(vector<mlir::Plugin::LoopOp>& loops, string& out)
 {
     Json::Value root;

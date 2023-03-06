@@ -71,6 +71,28 @@ public:
     vector<uint64_t> GetFunctionIDs();
     mlir::Plugin::FunctionOp GetFunctionById(uint64_t);
     vector<mlir::Plugin::LocalDeclOp> GetAllDecls(uint64_t);
+    vector<mlir::Plugin::DeclBaseOp> GetFuncDecls(uint64_t);
+    vector<FieldDeclOp> GetFields(uint64_t);
+    mlir::Plugin::DeclBaseOp BuildDecl(IDefineCode, string, PluginTypeBase);
+
+    mlir::Value MakeNode(IDefineCode);
+    void SetDeclName(uint64_t, uint64_t);
+    void SetDeclType(uint64_t, uint64_t);
+    void SetDeclAlign(uint64_t newfieldId, uint64_t fieldId);
+    void SetUserAlign(uint64_t newfieldId, uint64_t fieldId);
+    void SetSourceLocation(uint64_t newfieldId, uint64_t fieldId);
+    void SetAddressable(uint64_t newfieldId, uint64_t fieldId);
+    void SetNonAddressablep(uint64_t newfieldId, uint64_t fieldId);
+    void SetVolatile(uint64_t newfieldId, uint64_t fieldId);
+    void SetDeclContext(uint64_t newfieldId, uint64_t declId);
+    void SetDeclChain(uint64_t newfieldId, uint64_t fieldId);
+
+    unsigned GetDeclTypeSize(uint64_t declId);
+
+    void SetTypeFields(uint64_t declId, uint64_t fieldId);
+    void LayoutType(uint64_t declId);
+    void LayoutDecl(uint64_t declId);
+
     vector<mlir::Plugin::LoopOp> GetAllLoops(uint64_t);
     LoopOp GetLoop(uint64_t);
     bool IsBlockInside(uint64_t, uint64_t);
