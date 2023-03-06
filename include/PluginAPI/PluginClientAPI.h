@@ -56,6 +56,7 @@ public:
     vector<LocalDeclOp> GetDecls(uint64_t funcID) override;
     vector<DeclBaseOp> GetFuncDecls(uint64_t funcID) override;
     vector<FieldDeclOp> GetFields(uint64_t declID) override;
+    PluginIR::PluginTypeBase GetDeclType(uint64_t declID) override;
     DeclBaseOp BuildDecl(IDefineCode, string, PluginTypeBase) override;
 
     mlir::Value MakeNode(IDefineCode) override;

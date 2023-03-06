@@ -93,7 +93,7 @@ static IComparisonCode TranslateCmpCode(enum tree_code ccode)
         case NE_EXPR:
             return IComparisonCode::ne;
         default:
-            printf("tcc_comparison: %d not suppoted!\n", ccode);
+            fprintf(stderr, "tcc_comparison: %d not suppoted!\n", ccode);
             break;
     }
     return IComparisonCode::UNDEF;
@@ -117,7 +117,7 @@ static enum tree_code TranslateCmpCodeToTreeCode(IComparisonCode iCode)
         case IComparisonCode::ne:
             return NE_EXPR;
         default:
-            printf("tcc_comparison not suppoted!\n");
+            fprintf(stderr, "tcc_comparison not suppoted!\n");
             break;
     }
     // FIXME.
@@ -320,8 +320,6 @@ CGnodeOp GimpleToPluginOps::BuildCGnodeOp(uint64_t id)
 {
     cgraph_node *node;
     node = reinterpret_cast<cgraph_node *>(id);
-    fprintf(stderr, "dgy client BuildCGnodeOp id : %lld\n", id);
-    fprintf(stderr, "dgy client BuildCGnodeOp node name is : %s/%d\n", node->name(), node->order);
     mlir::StringRef symbolName(node->name());
     bool definition = false;
     if (node->definition)
@@ -338,8 +336,6 @@ vector<uint64_t> GimpleToPluginOps::GetCGnodeIDs()
     vector<uint64_t> cgnodeIDs;
     FOR_EACH_FUNCTION (node) {
         int64_t id = reinterpret_cast<int64_t>(reinterpret_cast<void*>(node));
-        fprintf(stderr, "dgy client GetCGnodeIDs id : %lld\n", id);
-        fprintf(stderr, "dgy client GetCGnodeIDs node name is : %s/%d\n", node->name(), node->order);
         cgnodeIDs.push_back(id);
     }
     return cgnodeIDs;
@@ -506,6 +502,14 @@ vector<FieldDeclOp> GimpleToPluginOps::GetFields(uint64_t declID)
     return fields;
 }
 
+PluginIR::PluginTypeBase GimpleToPluginOps::GetDeclType(uint64_t declID)
+{
+    tree decl = reinterpret_cast<tree>(declID);
+    tree type = TREE_TYPE(decl);
+    PluginIR::PluginTypeBase retType = typeTranslator.translateType(reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(type)));
+    return retType;
+}
+
 DeclBaseOp GimpleToPluginOps::BuildDecl(IDefineCode code, string name, PluginTypeBase type)
 {
     tree newtype = make_node(RECORD_TYPE);
@@ -581,8 +585,8 @@ void GimpleToPluginOps::LayoutDecl(uint64_t declId)
 {
     tree decl = reinterpret_cast<tree>(declId);
     layout_decl (decl, 0);
-    debug_tree(decl);
-    debug_tree(TREE_TYPE(decl));
+    // debug_tree(decl);
+    // debug_tree(TREE_TYPE(decl));
 }
 
 void GimpleToPluginOps::SetDeclChain(uint64_t newfieldId, uint64_t fieldId)
@@ -900,19 +904,19 @@ Operation *GimpleToPluginOps::BuildOperation(uint64_t id)
             break;
         }
         case GIMPLE_TRY: {
-            printf("try stmt \n");
+            fprintf(stderr, "try stmt \n");
             TryOp tryOp = BuildTryOp(id);
             ret = tryOp.getOperation();
             break;
         }
         case GIMPLE_CATCH: {
-            printf("catch stmt \n");
+            fprintf(stderr, "catch stmt \n");
             CatchOp catchOp = BuildCatchOp(id);
             ret = catchOp.getOperation();
             break;
         }
         case GIMPLE_BIND: {
-            printf("bind stmt \n");
+            fprintf(stderr, "bind stmt \n");
             BindOp bindOp = BuildBindOp(id);
             ret = bindOp.getOperation();
             break;
@@ -1078,7 +1082,7 @@ uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
     } else if (vargs.size() == 4) {
         ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode), vargs[1], vargs[2], vargs[3]);
     } else {
-        printf("ERROR size: %ld.\n", vargs.size());
+        fprintf(stderr, "ERROR size: %ld.\n", vargs.size());
     }
     basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
@@ -1288,7 +1292,7 @@ EHMntOp GimpleToPluginOps::BuildEHMntOp(uint64_t gehmntId)
     uint64_t fndecladdr = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(gimple_eh_must_not_throw_fndecl(stmt)));
     Value fndecl = TreeToValue(fndecladdr);
-    printf("build --------------------------------------\n");
+    fprintf(stderr, "build --------------------------------------\n");
     EHMntOp ret = builder.create<EHMntOp>(
             builder.getUnknownLoc(), gehmntId, fndecl);
     return ret;
@@ -1718,7 +1722,7 @@ bool GimpleToPluginOps::ProcessGimpleStmt(intptr_t bbPtr, Region& rg)
         gimple *stmt = gsi_stmt (si);
         uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(stmt));
         if (BuildOperation(id) == nullptr) {
-            printf("ERROR: BuildOperation!");
+            fprintf(stderr, "ERROR: BuildOperation!");
         }
         if(gimple_code(stmt) == GIMPLE_COND || gimple_code(stmt) == GIMPLE_SWITCH
             || gimple_code(stmt) == GIMPLE_TRANSACTION || gimple_code(stmt) == GIMPLE_RESX ||

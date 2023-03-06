@@ -64,6 +64,7 @@ public:
     virtual vector<LocalDeclOp> GetDecls(uint64_t funcID) = 0;
     virtual vector<DeclBaseOp> GetFuncDecls(uint64_t funcID) = 0;
     virtual vector<FieldDeclOp> GetFields(uint64_t declID) = 0;
+    virtual PluginIR::PluginTypeBase GetDeclType(uint64_t declID) = 0;
     virtual DeclBaseOp BuildDecl(IDefineCode, string, PluginTypeBase) = 0;
 
     virtual mlir::Value MakeNode(IDefineCode) = 0;

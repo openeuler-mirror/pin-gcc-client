@@ -268,6 +268,19 @@ void GetBuildDeclResult(PluginClient *client, Json::Value& root, string& result)
     client->ReceiveSendMsg("DeclOpResult", result);
 }
 
+void GetDeclTypeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string declIdKey = "declId";
+    uint64_t declID = atol(root[declIdKey].asString().c_str());
+    PluginIR::PluginTypeBase retType = clientAPI.GetDeclType(declID);
+    PluginJson json = client->GetJson();
+    result = json.TypeJsonSerialize(retType).toStyledString();
+    client->ReceiveSendMsg("PluginTypeResult", result);
+}
+
 void SetDeclNameResult(PluginClient *client, Json::Value& root, string& result)
 {
     /// Json格式
@@ -1266,6 +1279,7 @@ std::map<string, GetResultFunc> g_getResultFunc = {
     {"GetFuncDecls", GetFuncDeclsResult},
     {"GetFields", GetFieldsResult},
     {"BuildDecl", GetBuildDeclResult},
+    {"GetDeclType", GetDeclTypeResult},
     {"MakeNode", GetMakeNodeResult},
     {"SetDeclName", SetDeclNameResult},
     {"SetDeclType", SetDeclTypeResult},

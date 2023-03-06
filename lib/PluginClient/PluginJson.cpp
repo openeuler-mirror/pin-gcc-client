@@ -209,7 +209,6 @@ void PluginJson::CGnodeOpJsonSerialize(CGnodeOp& cgnode, string& out)
         root["attributes"]["definition"] = "0";
     }
     root["attributes"]["symbolName"] = cgnode.symbolNameAttr().getValue().str().c_str();
-    fprintf(stderr, "dgy client cgnode json %s\n", root.toStyledString().c_str());
     out = root.toStyledString();
 }
 

@@ -117,6 +117,11 @@ vector<FieldDeclOp> PluginClientAPI::GetFields(uint64_t declID)
     return gimpleConversion.GetFields(declID);
 }
 
+PluginIR::PluginTypeBase PluginClientAPI::GetDeclType(uint64_t declID)
+{
+    return gimpleConversion.GetDeclType(declID);
+}
+
 mlir::Value PluginClientAPI::MakeNode(IDefineCode code)
 {
     return gimpleConversion.MakeNode(code);

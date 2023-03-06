@@ -73,6 +73,7 @@ public:
     vector<mlir::Plugin::LocalDeclOp> GetAllDecls(uint64_t);
     vector<mlir::Plugin::DeclBaseOp> GetFuncDecls(uint64_t);
     vector<FieldDeclOp> GetFields(uint64_t);
+    PluginIR::PluginTypeBase GetDeclType(uint64_t);
     mlir::Plugin::DeclBaseOp BuildDecl(IDefineCode, string, PluginTypeBase);
 
     mlir::Value MakeNode(IDefineCode);
