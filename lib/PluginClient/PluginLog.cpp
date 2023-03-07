@@ -46,14 +46,14 @@ static void GetLogFileName(string& fileName)
 {
     time_t nowTime = time(nullptr);
     if (nowTime == -1) {
-        printf("%s fail\n", __func__);
+        fprintf(stderr, "%s fail\n", __func__);
     }
     struct tm *t = localtime(&nowTime);
     char buf[100];
     int ret = sprintf(buf, "/tmp/pin_client%d_%4d%02d%02d_%02d_%02d_%02d.log", getpid(),
         t->tm_year + BASE_DATE, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
     if (ret < 0) {
-        printf("%s sprintf fail\n", __func__);
+        fprintf(stderr, "%s sprintf fail\n", __func__);
     }
     fileName = buf;
 }
@@ -100,14 +100,14 @@ static void LogWrite(const char *tag, const char *msg)
 {
     time_t nowTime = time(nullptr);
     if (nowTime == -1) {
-        printf("%s fail\n", __func__);
+        fprintf(stderr, "%s fail\n", __func__);
     }
     struct tm *t = localtime(&nowTime);
     char buf[30];
     int ret = sprintf(buf, "%4d-%02d-%02d %02d:%02d:%02d ", t->tm_year + BASE_DATE, t->tm_mon + 1, t->tm_mday,
         t->tm_hour, t->tm_min, t->tm_sec);
     if (ret < 0) {
-        printf("%s sprintf fail\n", __func__);
+        fprintf(stderr, "%s sprintf fail\n", __func__);
     }
     string stag = tag;
     string smsg = msg;
@@ -123,12 +123,12 @@ void LogPrint(LogPriority priority, const char *tag, const char *fmt, ...)
     va_start(ap, fmt);
     int ret = vsnprintf(buf, LOG_BUF_SIZE, fmt, ap);
     if (ret < 0) {
-        printf("%s vsnprintf fail\n", __func__);
+        fprintf(stderr, "%s vsnprintf fail\n", __func__);
     }
     va_end(ap);
 
     if (priority <= g_priority) {
-        printf("%s%s", tag, buf);
+        fprintf(stderr, "%s%s", tag, buf);
     }
 
     g_mutex.lock();

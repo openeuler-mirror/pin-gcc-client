@@ -195,6 +195,23 @@ PluginIR::PluginTypeBase PluginJson::TypeJsonDeSerialize(const string& data, mli
     return baseType;
 }
 
+void PluginJson::CGnodeOpJsonSerialize(CGnodeOp& cgnode, string& out)
+{
+    Json::Value root;
+    Json::Value operationObj;
+    Json::Value item;
+
+    root["id"] = std::to_string(cgnode.idAttr().getInt());
+    root["attributes"]["order"] = std::to_string(cgnode.orderAttr().getInt());
+    if (cgnode.definitionAttr().getValue()) {
+        root["attributes"]["definition"] = "1";
+    }else {
+        root["attributes"]["definition"] = "0";
+    }
+    root["attributes"]["symbolName"] = cgnode.symbolNameAttr().getValue().str().c_str();
+    out = root.toStyledString();
+}
+
 void PluginJson::FunctionOpJsonSerialize(vector<FunctionOp>& data, string& out)
 {
     Json::Value root;
@@ -363,6 +380,40 @@ void PluginJson::LocalDeclsJsonSerialize(vector<LocalDeclOp>& decls, string& out
         item["attributes"]["typeID"] = decl.typeIDAttr().getInt();
         item["attributes"]["typeWidth"] = decl.typeWidthAttr().getInt();
         operation = "localDecl" + std::to_string(i++);
+        root[operation] = item;
+        item.clear();
+    }
+    out = root.toStyledString();
+}
+
+void PluginJson::FunctionDeclsJsonSerialize(vector<mlir::Plugin::DeclBaseOp>& decls, string& out)
+{
+    Json::Value root;
+    Json::Value operationObj;
+    Json::Value item;
+    int i = 0;
+    string operation;
+
+    for (auto& decl: decls) {
+        item = DeclBaseOpJsonSerialize(decl);
+        operation = std::to_string(i++);
+        root[operation] = item;
+        item.clear();
+    }
+    out = root.toStyledString();
+}
+
+void PluginJson::FiledOpsJsonSerialize(vector<mlir::Plugin::FieldDeclOp>& decls, string& out)
+{
+    Json::Value root;
+    Json::Value operationObj;
+    Json::Value item;
+    int i = 0;
+    string operation;
+
+    for (auto& decl: decls) {
+        item = FieldDeclOpJsonSerialize(decl);
+        operation = std::to_string(i++);
         root[operation] = item;
         item.clear();
     }

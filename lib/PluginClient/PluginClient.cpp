@@ -95,6 +95,48 @@ void PluginClient::GetGccData(const string& funcName, const string& param, strin
     }
 }
 
+// CGnode ============
+
+void GetCGnodeIDsResult(PluginClient *client, Json::Value& root, string& result)
+{
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    vector<uint64_t> ids = clientAPI.GetCGnodeIDs();
+    PluginJson json = client->GetJson();
+    json.IDsJsonSerialize(ids, result);
+    client->ReceiveSendMsg("IdsResult", result);
+}
+
+void GetCGnodeOpByIdResult(PluginClient *client, Json::Value& root, string& result)
+{
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string funcIdKey = "id";
+    uint64_t cgnodeID = atol(root[funcIdKey].asString().c_str());
+    CGnodeOp cgnodeOp = clientAPI.GetCGnodeOpById(cgnodeID);
+    PluginJson json = client->GetJson();
+    json.CGnodeOpJsonSerialize(cgnodeOp, result);
+    client->ReceiveSendMsg("CGnodeOpResult", result);
+}
+
+void IsRealSymbolOfCGnodeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string funcIdKey = "id";
+    uint64_t cgnodeID = atol(root[funcIdKey].asString().c_str());
+    bool realsymbol = clientAPI.IsRealSymbolOfCGnode(cgnodeID);
+    client->ReceiveSendMsg("BoolResult", std::to_string(realsymbol));
+}
+
+// ===================
+
 void GetAllFuncResult(PluginClient *client, Json::Value& root, string& result)
 {
     // Load our Dialect in this MLIR Context.
@@ -149,6 +191,366 @@ void GetLocalDeclsResult(PluginClient *client, Json::Value& root, string& result
     PluginJson json = client->GetJson();
     json.LocalDeclsJsonSerialize(decls, result);
     client->ReceiveSendMsg("LocalDeclOpResult", result);
+}
+
+void GetFuncDeclsResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "funcId":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string funcIdKey = "funcId";
+    uint64_t funcID = atol(root[funcIdKey].asString().c_str());
+    vector<DeclBaseOp> decls = clientAPI.GetFuncDecls(funcID);
+    PluginJson json = client->GetJson();
+    json.FunctionDeclsJsonSerialize(decls, result);
+    client->ReceiveSendMsg("FuncDeclsOpResult", result);
+}
+
+void GetMakeNodeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "defCode":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string codeKey = "defCode";
+    IDefineCode code = IDefineCode(atoi((root[codeKey].asString().c_str())));
+    mlir::Value v = clientAPI.MakeNode(code);
+    PluginJson json = client->GetJson();
+    result = json.ValueJsonSerialize(v).toStyledString();
+    client->ReceiveSendMsg("MakeNodeResult", result);
+}
+
+void GetFieldsResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "declId":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string declIdKey = "declId";
+    uint64_t declID = atol(root[declIdKey].asString().c_str());
+    vector<FieldDeclOp> decls = clientAPI.GetFields(declID);
+    PluginJson json = client->GetJson();
+    json.FiledOpsJsonSerialize(decls, result);
+    client->ReceiveSendMsg("GetFieldsOpResult", result);
+}
+
+void GetBuildDeclResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "defCode":"xxxx",
+    ///     "name":"xxxx",
+    ///     "type":"xxxx"
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string defCode = "defCode";
+    std::string name = "name";
+    std::string type = "type";
+    IDefineCode code = IDefineCode(atoi((root[defCode].asString().c_str())));
+    string tname = root[name].asString();
+    PluginJson json = client->GetJson();
+    PluginIR::PluginTypeBase t = json.TypeJsonDeSerialize(root[type].toStyledString(), context);
+    DeclBaseOp decl = clientAPI.BuildDecl(code, tname, t);
+
+    result = json.DeclBaseOpJsonSerialize(decl).toStyledString();
+    client->ReceiveSendMsg("DeclOpResult", result);
+}
+
+void GetDeclTypeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string declIdKey = "declId";
+    uint64_t declID = atol(root[declIdKey].asString().c_str());
+    PluginIR::PluginTypeBase retType = clientAPI.GetDeclType(declID);
+    PluginJson json = client->GetJson();
+    result = json.TypeJsonSerialize(retType).toStyledString();
+    client->ReceiveSendMsg("PluginTypeResult", result);
+}
+
+void SetDeclNameResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetDeclName(newfieldId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetSourceLocationResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetSourceLocation(newfieldId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetDeclAlignResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetDeclAlign(newfieldId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetUserAlignResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetUserAlign(newfieldId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetTypeFieldsResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "declId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string declIdkey = "declId";
+    uint64_t declId = atol(root[declIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetTypeFields(declId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void LayoutTypeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "declId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string declIdKey = "declId";
+    uint64_t declId = atol(root[declIdKey].asString().c_str());
+    clientAPI.LayoutType(declId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void LayoutDeclResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "declId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string declIdKey = "declId";
+    uint64_t declId = atol(root[declIdKey].asString().c_str());
+    clientAPI.LayoutDecl(declId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+
+void SetDeclChainResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetDeclChain(newfieldId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void GetDeclTypeSizeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "declId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string declIdkey = "declId";
+    uint64_t declId = atol(root[declIdkey].asString().c_str());
+    unsigned size = clientAPI.GetDeclTypeSize(declId);
+    PluginJson json = client->GetJson();
+    json.IntegerSerialize(size, result);
+    client->ReceiveSendMsg("IntegerResult", result);
+}
+
+void SetAddressableResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetAddressable(newfieldId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetNonAddressablepResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetNonAddressablep(newfieldId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetVolatileResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetVolatile(newfieldId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetDeclContextResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string declIdKey = "declId";
+    uint64_t declId = atol(root[declIdKey].asString().c_str());
+    clientAPI.SetDeclContext(newfieldId, declId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void SetDeclTypeResult(PluginClient *client, Json::Value& root, string& result)
+{
+    /// Json格式
+    /// {
+    ///     "newfieldId":"xxxx",
+    ///     "fieldId":"xxxx",
+    /// }
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string newfieldIdkey = "newfieldId";
+    uint64_t newfieldId = atol(root[newfieldIdkey].asString().c_str());
+    std::string fieldIdKey = "fieldId";
+    uint64_t fieldId = atol(root[fieldIdKey].asString().c_str());
+    clientAPI.SetDeclType(newfieldId, fieldId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
 }
 
 void GetLoopsFromFuncResult(PluginClient *client, Json::Value& root, string& result)
@@ -867,10 +1269,32 @@ void IsWholeProgramResult(PluginClient *client, Json::Value& root, string& resul
 
 typedef std::function<void(PluginClient*, Json::Value&, string&)> GetResultFunc;
 std::map<string, GetResultFunc> g_getResultFunc = {
+    {"GetCGnodeIDs", GetCGnodeIDsResult},
+    {"GetCGnodeOpById", GetCGnodeOpByIdResult},
+    {"IsRealSymbolOfCGnode", IsRealSymbolOfCGnodeResult},
     {"GetAllFunc", GetAllFuncResult},
     {"GetFunctionIDs", GetFunctionIDsResult},
     {"GetFunctionOpById", GetFunctionOpByIdResult},
     {"GetLocalDecls", GetLocalDeclsResult},
+    {"GetFuncDecls", GetFuncDeclsResult},
+    {"GetFields", GetFieldsResult},
+    {"BuildDecl", GetBuildDeclResult},
+    {"GetDeclType", GetDeclTypeResult},
+    {"MakeNode", GetMakeNodeResult},
+    {"SetDeclName", SetDeclNameResult},
+    {"SetDeclType", SetDeclTypeResult},
+    {"SetSourceLocation", SetSourceLocationResult},
+    {"SetDeclAlign", SetDeclAlignResult},
+    {"SetUserAlign", SetUserAlignResult},
+    {"SetTypeFields", SetTypeFieldsResult},
+    {"LayoutType", LayoutTypeResult},
+    {"LayoutDecl", LayoutDeclResult},
+    {"SetAddressable", SetAddressableResult},
+    {"GetDeclTypeSize", GetDeclTypeSizeResult},
+    {"SetDeclChain", SetDeclChainResult},
+    {"SetNonAddressablep", SetNonAddressablepResult},
+    {"SetVolatile", SetVolatileResult},
+    {"SetDeclContext", SetDeclContextResult},
     {"GetLoopsFromFunc", GetLoopsFromFuncResult},
     {"GetLoopById", GetLoopByIdResult},
     {"IsBlockInside", IsBlockInsideResult},

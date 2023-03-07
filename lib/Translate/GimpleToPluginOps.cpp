@@ -48,6 +48,7 @@
 #include "tree-into-ssa.h"
 #include "dominance.h"
 #include "print-tree.h"
+#include "stor-layout.h"
 
 namespace PluginIR {
 using namespace mlir::Plugin;
@@ -92,7 +93,7 @@ static IComparisonCode TranslateCmpCode(enum tree_code ccode)
         case NE_EXPR:
             return IComparisonCode::ne;
         default:
-            printf("tcc_comparison: %d not suppoted!\n", ccode);
+            fprintf(stderr, "tcc_comparison: %d not suppoted!\n", ccode);
             break;
     }
     return IComparisonCode::UNDEF;
@@ -116,7 +117,7 @@ static enum tree_code TranslateCmpCodeToTreeCode(IComparisonCode iCode)
         case IComparisonCode::ne:
             return NE_EXPR;
         default:
-            printf("tcc_comparison not suppoted!\n");
+            fprintf(stderr, "tcc_comparison not suppoted!\n");
             break;
     }
     // FIXME.
@@ -313,6 +314,48 @@ uint64_t GimpleToPluginOps::RecomputeDominator(uint64_t dir, uint64_t bbAddr)
     abort();
 }
 
+// CGnode =========
+
+CGnodeOp GimpleToPluginOps::BuildCGnodeOp(uint64_t id)
+{
+    cgraph_node *node;
+    node = reinterpret_cast<cgraph_node *>(id);
+    mlir::StringRef symbolName(node->name());
+    bool definition = false;
+    if (node->definition)
+        definition = true;
+    uint32_t order = node->order;
+    auto location = builder.getUnknownLoc();
+    CGnodeOp retOp = builder.create<CGnodeOp>(location, id, symbolName, definition, order);
+    return retOp;
+}
+
+vector<uint64_t> GimpleToPluginOps::GetCGnodeIDs()
+{
+    cgraph_node *node = NULL;
+    vector<uint64_t> cgnodeIDs;
+    FOR_EACH_FUNCTION (node) {
+        int64_t id = reinterpret_cast<int64_t>(reinterpret_cast<void*>(node));
+        cgnodeIDs.push_back(id);
+    }
+    return cgnodeIDs;
+}
+
+CGnodeOp GimpleToPluginOps::GetCGnodeOpById(uint64_t id)
+{
+    CGnodeOp cgOp = BuildCGnodeOp(id);
+    return cgOp;
+}
+
+bool GimpleToPluginOps::IsRealSymbolOfCGnode(uint64_t id)
+{
+    cgraph_node *node;
+    node = reinterpret_cast<cgraph_node *>(id);
+    return node->real_symbol_p();
+}
+
+//=================
+
 vector<FunctionOp> GimpleToPluginOps::GetAllFunction()
 {
     cgraph_node *node = NULL;
@@ -376,6 +419,215 @@ vector<LocalDeclOp> GimpleToPluginOps::GetAllDecls(uint64_t funcID)
         }
     }
     return decls;
+}
+
+vector<DeclBaseOp> GimpleToPluginOps::GetFuncDecls(uint64_t funcID)
+{
+    function *fn = reinterpret_cast<function *>(funcID);
+    vector<DeclBaseOp> decls;
+    if (!vec_safe_is_empty(fn->local_decls)) {
+        unsigned ix = 0;
+        tree var = NULL_TREE;
+        FOR_EACH_LOCAL_DECL (fn, ix, var) {
+            uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(var));
+            if (TREE_CODE(var) != VAR_DECL || !DECL_NAME (var)) {
+                continue;
+            }
+            bool addressable = TREE_ADDRESSABLE(var);
+            bool used = TREE_USED(var);
+            int32_t uid = DECL_UID(var);
+            mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(var));
+            mlir::Value name = TreeToValue((uint64_t)DECL_NAME(var));
+            llvm::Optional<uint64_t> chain = (uint64_t)DECL_CHAIN(var);
+            bool readOnly = false;
+            PluginTypeBase rPluginType = PluginUndefType::get(builder.getContext());
+            GetTreeAttr(id, readOnly, rPluginType);
+            DeclBaseOp decl = builder.create<DeclBaseOp>(
+                builder.getUnknownLoc(), id, IDefineCode::Decl, readOnly, addressable, used, uid, initial, name,
+                chain, rPluginType);
+
+            decls.push_back(decl);
+        }
+    }
+    return decls;
+}
+
+mlir::Value GimpleToPluginOps::MakeNode(IDefineCode defcode)
+{   
+    enum tree_code code;
+    switch (defcode) {
+        case IDefineCode::FieldDecl : {
+            code = FIELD_DECL;
+            break;
+        }
+        default : {
+            code = FIELD_DECL;
+            break;
+        }
+    }
+    tree field = make_node(code);
+    mlir::Value v = TreeToValue(reinterpret_cast<uint64_t>(reinterpret_cast<void*>(field)));
+    return v;
+}
+
+vector<FieldDeclOp> GimpleToPluginOps::GetFields(uint64_t declID)
+{
+    vector<FieldDeclOp> fields;
+    tree decl = reinterpret_cast<tree>(declID);
+    tree type = TREE_TYPE(decl);
+    while (POINTER_TYPE_P (type) || TREE_CODE (type) == ARRAY_TYPE)
+        type = TREE_TYPE (type);
+
+    for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field)) {
+        if (TREE_CODE (field) != FIELD_DECL) {
+            continue;
+        }
+        uint64_t treeId = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(field));
+        bool addressable = TREE_ADDRESSABLE(field);
+        bool used = TREE_USED(field);
+        int32_t uid = DECL_UID(field);
+        mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(field));
+        mlir::Value name = TreeToValue((uint64_t)DECL_NAME(field));
+        uint64_t chain = (uint64_t)DECL_CHAIN(field);
+        mlir::Value fieldOffset = TreeToValue((uint64_t)DECL_FIELD_OFFSET(field));
+        mlir::Value fieldBitOffset = TreeToValue((uint64_t)DECL_FIELD_BIT_OFFSET(field));
+        bool readOnly = false;
+        PluginTypeBase rPluginType = PluginUndefType::get(builder.getContext());
+        GetTreeAttr(treeId, readOnly, rPluginType);
+        FieldDeclOp opValue = builder.create<FieldDeclOp>(
+            builder.getUnknownLoc(), treeId, IDefineCode::FieldDecl, readOnly, addressable, used, uid, initial, name,
+            chain, fieldOffset, fieldBitOffset, rPluginType);
+        fields.push_back(opValue);
+    }
+    return fields;
+}
+
+PluginIR::PluginTypeBase GimpleToPluginOps::GetDeclType(uint64_t declID)
+{
+    tree decl = reinterpret_cast<tree>(declID);
+    tree type = TREE_TYPE(decl);
+    PluginIR::PluginTypeBase retType = typeTranslator.translateType(reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(type)));
+    return retType;
+}
+
+DeclBaseOp GimpleToPluginOps::BuildDecl(IDefineCode code, string name, PluginTypeBase type)
+{
+    tree newtype = make_node(RECORD_TYPE);
+    tree t = build_decl(UNKNOWN_LOCATION, TYPE_DECL, get_identifier(name.c_str()), newtype);
+    TYPE_NAME(newtype) = t;
+
+    uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(t));
+
+    bool addressable = TREE_ADDRESSABLE(t);
+    bool used = TREE_USED(t);
+    int32_t uid = DECL_UID(t);
+    mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(t));
+    mlir::Value tname = TreeToValue((uint64_t)DECL_NAME(t));
+    llvm::Optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
+    bool readOnly = false;
+    PluginTypeBase rPluginType = PluginUndefType::get(builder.getContext());
+    GetTreeAttr(id, readOnly, rPluginType);
+    DeclBaseOp decl = builder.create<DeclBaseOp>(
+        builder.getUnknownLoc(), id, code, readOnly, addressable, used, uid, initial, tname,
+        chain, rPluginType);
+    return decl;
+}
+
+void GimpleToPluginOps::SetDeclName(uint64_t newfieldId, uint64_t fieldId)
+{
+    tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    DECL_NAME (newfield) = DECL_NAME (field);
+}
+
+void GimpleToPluginOps::SetDeclType(uint64_t newfieldId, uint64_t fieldId)
+{
+    tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    TREE_TYPE (newfield) = TREE_TYPE (field);
+}
+
+void GimpleToPluginOps::SetSourceLocation(uint64_t newfieldId, uint64_t fieldId)
+{
+    tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    DECL_SOURCE_LOCATION (newfield) = DECL_SOURCE_LOCATION (field);
+}
+
+void GimpleToPluginOps::SetDeclAlign(uint64_t newfieldId, uint64_t fieldId)
+{
+    tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    SET_DECL_ALIGN (newfield, DECL_ALIGN (field));
+}
+
+void GimpleToPluginOps::SetUserAlign(uint64_t newfieldId, uint64_t fieldId)
+{
+    tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    DECL_USER_ALIGN (newfield) = DECL_USER_ALIGN (field);
+}
+
+void GimpleToPluginOps::SetTypeFields(uint64_t declId, uint64_t fieldId)
+{
+    tree decl = reinterpret_cast<tree>(declId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    TYPE_FIELDS (TREE_TYPE(decl)) = field; 
+}
+
+void GimpleToPluginOps::LayoutType(uint64_t declId)
+{
+    tree decl = reinterpret_cast<tree>(declId);
+    layout_type (TREE_TYPE(decl));
+}
+
+void GimpleToPluginOps::LayoutDecl(uint64_t declId)
+{
+    tree decl = reinterpret_cast<tree>(declId);
+    layout_decl (decl, 0);
+    // debug_tree(decl);
+    // debug_tree(TREE_TYPE(decl));
+}
+
+void GimpleToPluginOps::SetDeclChain(uint64_t newfieldId, uint64_t fieldId)
+{
+     tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    DECL_CHAIN (newfield) = field;     
+}
+
+unsigned GimpleToPluginOps::GetDeclTypeSize(uint64_t declId)
+{
+    tree decl = reinterpret_cast<tree>(declId);
+    return tree_to_uhwi (TYPE_SIZE (TREE_TYPE (decl)));
+}
+
+void GimpleToPluginOps::SetAddressable(uint64_t newfieldId, uint64_t fieldId)
+{
+    tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    TREE_ADDRESSABLE (newfield) = TREE_ADDRESSABLE (field);
+}
+
+void GimpleToPluginOps::SetNonAddressablep(uint64_t newfieldId, uint64_t fieldId)
+{
+    tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    DECL_NONADDRESSABLE_P (newfield) = !TREE_ADDRESSABLE (field);
+}
+
+void GimpleToPluginOps::SetVolatile(uint64_t newfieldId, uint64_t fieldId)
+{
+    tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree field = reinterpret_cast<tree>(fieldId);
+    TREE_THIS_VOLATILE (newfield) = TREE_THIS_VOLATILE (field);
+}
+
+void GimpleToPluginOps::SetDeclContext(uint64_t newfieldId, uint64_t declId)
+{
+    tree newfield = reinterpret_cast<tree>(newfieldId);
+    tree decl = reinterpret_cast<tree>(declId);
+    DECL_CONTEXT (newfield) = TREE_TYPE(decl);
 }
 
 vector<LoopOp> GimpleToPluginOps::GetAllLoops(uint64_t funcID)
@@ -652,19 +904,19 @@ Operation *GimpleToPluginOps::BuildOperation(uint64_t id)
             break;
         }
         case GIMPLE_TRY: {
-            printf("try stmt \n");
+            fprintf(stderr, "try stmt \n");
             TryOp tryOp = BuildTryOp(id);
             ret = tryOp.getOperation();
             break;
         }
         case GIMPLE_CATCH: {
-            printf("catch stmt \n");
+            fprintf(stderr, "catch stmt \n");
             CatchOp catchOp = BuildCatchOp(id);
             ret = catchOp.getOperation();
             break;
         }
         case GIMPLE_BIND: {
-            printf("bind stmt \n");
+            fprintf(stderr, "bind stmt \n");
             BindOp bindOp = BuildBindOp(id);
             ret = bindOp.getOperation();
             break;
@@ -830,7 +1082,7 @@ uint64_t GimpleToPluginOps::CreateGassign(uint64_t blockId, IExprCode iCode,
     } else if (vargs.size() == 4) {
         ret = gimple_build_assign(vargs[0], TranslateExprCodeToTreeCode(iCode), vargs[1], vargs[2], vargs[3]);
     } else {
-        printf("ERROR size: %ld.\n", vargs.size());
+        fprintf(stderr, "ERROR size: %ld.\n", vargs.size());
     }
     basic_block bb = reinterpret_cast<basic_block>(blockId);
     if (bb != nullptr) {
@@ -1040,7 +1292,7 @@ EHMntOp GimpleToPluginOps::BuildEHMntOp(uint64_t gehmntId)
     uint64_t fndecladdr = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(gimple_eh_must_not_throw_fndecl(stmt)));
     Value fndecl = TreeToValue(fndecladdr);
-    printf("build --------------------------------------\n");
+    fprintf(stderr, "build --------------------------------------\n");
     EHMntOp ret = builder.create<EHMntOp>(
             builder.getUnknownLoc(), gehmntId, fndecl);
     return ret;
@@ -1470,7 +1722,7 @@ bool GimpleToPluginOps::ProcessGimpleStmt(intptr_t bbPtr, Region& rg)
         gimple *stmt = gsi_stmt (si);
         uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(stmt));
         if (BuildOperation(id) == nullptr) {
-            printf("ERROR: BuildOperation!");
+            fprintf(stderr, "ERROR: BuildOperation!");
         }
         if(gimple_code(stmt) == GIMPLE_COND || gimple_code(stmt) == GIMPLE_SWITCH
             || gimple_code(stmt) == GIMPLE_TRANSACTION || gimple_code(stmt) == GIMPLE_RESX ||

@@ -33,6 +33,21 @@
 using namespace mlir;
 using namespace mlir::Plugin;
 
+// CGnodeOp ===================
+
+void CGnodeOp::build(OpBuilder &builder, OperationState &state,
+                     uint64_t id, StringRef symbolName, bool definition,
+                     uint32_t order)
+{
+    state.addRegion();
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("symbolName", builder.getStringAttr(symbolName));
+    state.addAttribute("definition", builder.getBoolAttr(definition));
+    state.addAttribute("order", builder.getI32IntegerAttr(order));
+}
+
+// ============================
+
 void FunctionOp::build(OpBuilder &builder, OperationState &state,
                        uint64_t id, StringRef funcName, bool declaredInline, Type type)
 {

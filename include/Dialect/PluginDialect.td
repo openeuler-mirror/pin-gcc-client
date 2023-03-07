@@ -80,12 +80,14 @@ def IDefineCodeConstructor  : I32EnumAttrCase<"Constructor", 9>;
 def IDefineCodeVec  : I32EnumAttrCase<"Vec", 10>;
 def IDefineCodeBLOCK  : I32EnumAttrCase<"BLOCK", 11>;
 def IDefineCodeCOMPONENT  : I32EnumAttrCase<"COMPONENT", 12>;
-def IDefineCodeUNDEF     : I32EnumAttrCase<"UNDEF", 13>;
+def IDefineCodeTYPEDECL   : I32EnumAttrCase<"TYPEDECL", 13>;
+def IDefineCodeUNDEF     : I32EnumAttrCase<"UNDEF", 14>;
 def IDefineCodeAttr  : I32EnumAttr<
    "IDefineCode", "plugin define code",
    [IDefineCodeMemRef, IDefineCodeIntCST, IDefineCodeSSA, IDefineCodeLIST,
    IDefineCodeStrCST, IDefineCodeArrayRef, IDefineCodeDecl, IDefineCodeFieldDecl, IDefineCodeAddrExp,
-   IDefineCodeConstructor, IDefineCodeVec, IDefineCodeBLOCK, IDefineCodeCOMPONENT, IDefineCodeUNDEF]>{
+   IDefineCodeConstructor, IDefineCodeVec, IDefineCodeBLOCK, IDefineCodeCOMPONENT, IDefineCodeTYPEDECL,
+   IDefineCodeUNDEF]>{
   let cppNamespace = "::mlir::Plugin";
 }
 

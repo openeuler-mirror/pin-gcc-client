@@ -47,7 +47,7 @@ bool PluginInputCheck::ReadConfigfile(Json::Value& root)
     }
 
     if (!reader.parse(ifs, root)) {
-        printf("parse %s fail! check the file format!\n", configFilePath.c_str());
+        fprintf(stderr, "parse %s fail! check the file format!\n", configFilePath.c_str());
         ifs.close();
         return false;
     }

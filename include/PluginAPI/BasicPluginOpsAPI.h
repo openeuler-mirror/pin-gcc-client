@@ -49,6 +49,10 @@ public:
     virtual int GetDeclSourceLine(uint64_t gccDataAddr) = 0;
     virtual int GetDeclSourceColumn(uint64_t gccDataAddr) = 0;
 
+    // CGnode
+    virtual vector<uint64_t> GetCGnodeIDs() = 0;
+    virtual CGnodeOp GetCGnodeOpById(uint64_t) = 0;
+
     virtual uint64_t CreateBlock(uint64_t, uint64_t) = 0;
     virtual void DeleteBlock(uint64_t, uint64_t) = 0;
     virtual void SetImmediateDominator(uint64_t, uint64_t, uint64_t) = 0;
@@ -58,6 +62,29 @@ public:
     virtual vector<uint64_t> GetFunctions() = 0;
     virtual FunctionOp GetFunctionOpById(uint64_t) = 0;
     virtual vector<LocalDeclOp> GetDecls(uint64_t funcID) = 0;
+    virtual vector<DeclBaseOp> GetFuncDecls(uint64_t funcID) = 0;
+    virtual vector<FieldDeclOp> GetFields(uint64_t declID) = 0;
+    virtual PluginIR::PluginTypeBase GetDeclType(uint64_t declID) = 0;
+    virtual DeclBaseOp BuildDecl(IDefineCode, string, PluginTypeBase) = 0;
+
+    virtual mlir::Value MakeNode(IDefineCode) = 0;
+    virtual void SetDeclName(uint64_t, uint64_t) = 0;
+    virtual void SetDeclType(uint64_t, uint64_t) = 0;
+    virtual void SetDeclAlign(uint64_t newfieldId, uint64_t fieldId) = 0;
+    virtual void SetUserAlign(uint64_t newfieldId, uint64_t fieldId) = 0;
+    virtual void SetSourceLocation(uint64_t newfieldId, uint64_t fieldId) = 0;
+    virtual void SetAddressable(uint64_t newfieldId, uint64_t fieldId) = 0;
+    virtual void SetNonAddressablep(uint64_t newfieldId, uint64_t fieldId) = 0;
+    virtual void SetVolatile(uint64_t newfieldId, uint64_t fieldId) = 0;
+    virtual void SetDeclContext(uint64_t newfieldId, uint64_t declId) = 0;
+    virtual void SetDeclChain(uint64_t newfieldId, uint64_t fieldId) = 0;
+
+    virtual unsigned GetDeclTypeSize(uint64_t declId) = 0;
+
+    virtual void SetTypeFields(uint64_t declId, uint64_t fieldId) = 0;
+    virtual void LayoutType(uint64_t declId) = 0;
+    virtual void LayoutDecl(uint64_t declId) = 0;
+
     virtual vector<LoopOp> GetLoopsFromFunc(uint64_t) = 0;
     virtual LoopOp GetLoopById(uint64_t) = 0;
     virtual bool IsBlockInside(uint64_t, uint64_t) = 0;

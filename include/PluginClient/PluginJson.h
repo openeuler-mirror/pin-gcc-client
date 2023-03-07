@@ -37,6 +37,9 @@ using std::vector;
 
 class PluginJson {
 public:
+    // CGnodeOp
+    void CGnodeOpJsonSerialize(mlir::Plugin::CGnodeOp& cgnode, string& out);
+
     void OpJsonSerialize(vector<mlir::Plugin::FunctionOp>& data, string& out);
     void LoopOpsJsonSerialize(vector<mlir::Plugin::LoopOp>& loops, string& out);
     void LoopOpJsonSerialize(mlir::Plugin::LoopOp& loop, string& out);
@@ -46,6 +49,8 @@ public:
     void NopJsonSerialize(string&);
     void FunctionOpJsonSerialize(vector<mlir::Plugin::FunctionOp>& data, string& out);
     void LocalDeclsJsonSerialize(vector<mlir::Plugin::LocalDeclOp>& decls, string& out);
+    void FunctionDeclsJsonSerialize(vector<mlir::Plugin::DeclBaseOp>& decls, string& out);
+    void FiledOpsJsonSerialize(vector<mlir::Plugin::FieldDeclOp>& decls, string& out);
     void GetPhiOpsJsonSerialize(vector<mlir::Plugin::PhiOp> phiOps, string& out);
     Json::Value OperationJsonSerialize(mlir::Operation *, uint64_t&);
     Json::Value CallOpJsonSerialize(mlir::Plugin::CallOp& data);
