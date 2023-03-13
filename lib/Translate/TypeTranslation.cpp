@@ -176,7 +176,7 @@ private:
         if (TREE_CODE(type) == ARRAY_TYPE)
             return PluginArrayType::get(&context,translatePrimitiveType(TREE_TYPE(type)), getDomainIndex(type));
         if (TREE_CODE(type) == VECTOR_TYPE)
-            return PluginArrayType::get(&context,translatePrimitiveType(TREE_TYPE(type)), getElemNum(type));
+            return PluginVectorType::get(&context,translatePrimitiveType(TREE_TYPE(type)), getElemNum(type));
         if (TREE_CODE(type) == FUNCTION_TYPE) {
             llvm::SmallVector<Type> argsType = getArgsType(type);
             return PluginFunctionType::get(&context, translatePrimitiveType(TREE_TYPE(type)),argsType);
