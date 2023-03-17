@@ -53,12 +53,6 @@ Json::Value PluginJson::TypeJsonSerialize(PluginIR::PluginTypeBase type)
         std::string tyName = Ty.getName().str();
         item["structtype"] = tyName;
         size_t paramIndex = 0;
-        ArrayRef<Type> paramsType = Ty.getBody();
-        for (auto ty :paramsType) {
-            string paramStr = "elemType" + std::to_string(paramIndex++);
-            item["structelemType"][paramStr] = TypeJsonSerialize(ty.dyn_cast<PluginIR::PluginTypeBase>());
-        }
-        paramIndex = 0;
         ArrayRef<StringRef> paramsNames = Ty.getElementNames();
         for (auto name :paramsNames) {
             string paramStr = "elemName" + std::to_string(paramIndex++);
@@ -164,21 +158,14 @@ PluginIR::PluginTypeBase PluginJson::TypeJsonDeSerialize(const string& data, mli
         baseType = PluginIR::PluginFunctionType::get(&context, returnTy, typelist);
     } else if (id == static_cast<uint64_t>(PluginIR::StructTyID)) {
         StringRef tyName = type["structtype"].toStyledString();
-        llvm::SmallVector<Type> typelist;
-        Json::Value::Members elemTypeNum = type["structelemType"].getMemberNames();
-        for (size_t paramIndex = 0; paramIndex < elemTypeNum.size(); paramIndex++) {
-            string Key = "elemType" + std::to_string(paramIndex);
-            mlir::Type paramTy = TypeJsonDeSerialize(type["structelemType"][Key].toStyledString(), context);
-            typelist.push_back(paramTy);
-        }
         llvm::SmallVector<StringRef> names;
         Json::Value::Members elemNameNum = type["structelemName"].getMemberNames();
-        for (size_t paramIndex = 0; paramIndex < elemTypeNum.size(); paramIndex++) {
+        for (size_t paramIndex = 0; paramIndex < elemNameNum.size(); paramIndex++) {
             string Key = "elemName" + std::to_string(paramIndex);
             StringRef elemName = type["structelemName"][Key].toStyledString();
             names.push_back(elemName);
         }
-        baseType = PluginIR::PluginStructType::get(&context, tyName, typelist, names);
+        baseType = PluginIR::PluginStructType::get(&context, tyName, names);
     }
     else {
         if (PluginTypeId == PluginIR::VoidTyID) {
@@ -229,11 +216,16 @@ void PluginJson::FunctionOpJsonSerialize(vector<FunctionOp>& data, string& out)
         }
         item["attributes"]["funcName"] = d.funcNameAttr().getValue().str().c_str();
 
-        mlir::Type fnty = d.type();
-        if (auto ty = fnty.dyn_cast<PluginIR::PluginFunctionType>()) {
-            if (auto retTy = ty.dyn_cast<PluginIR::PluginTypeBase>()) {
-                item["retType"] = TypeJsonSerialize(retTy);
+        if (d.validTypeAttr().getValue()) {
+            item["attributes"]["validType"] = "1";
+            mlir::Type fnty = d.type();
+            if (auto ty = fnty.dyn_cast<PluginIR::PluginFunctionType>()) {
+                if (auto retTy = ty.dyn_cast<PluginIR::PluginTypeBase>()) {
+                    item["retType"] = TypeJsonSerialize(retTy);
+                }
             }
+        } else {
+            item["attributes"]["validType"] = "0";
         }
 
         auto &region = d.getRegion();

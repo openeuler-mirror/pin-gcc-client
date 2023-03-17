@@ -49,13 +49,24 @@ void CGnodeOp::build(OpBuilder &builder, OperationState &state,
 // ============================
 
 void FunctionOp::build(OpBuilder &builder, OperationState &state,
-                       uint64_t id, StringRef funcName, bool declaredInline, Type type)
+                       uint64_t id, StringRef funcName, bool declaredInline, Type type, bool validType)
 {
     state.addRegion();
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addAttribute("funcName", builder.getStringAttr(funcName));
     state.addAttribute("declaredInline", builder.getBoolAttr(declaredInline));
+    state.addAttribute("validType", builder.getBoolAttr(validType));
     if (type) state.addAttribute("type", TypeAttr::get(type));
+}
+
+void FunctionOp::build(OpBuilder &builder, OperationState &state,
+                       uint64_t id, StringRef funcName, bool declaredInline, bool validType)
+{
+    state.addRegion();
+    state.addAttribute("id", builder.getI64IntegerAttr(id));
+    state.addAttribute("funcName", builder.getStringAttr(funcName));
+    state.addAttribute("declaredInline", builder.getBoolAttr(declaredInline));
+    state.addAttribute("validType", builder.getBoolAttr(validType));
 }
 
 Type FunctionOp::getResultType()
