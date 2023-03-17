@@ -130,6 +130,8 @@ private:
     llvm::SmallVector<Type> getElemType(tree type)
     {
         llvm::SmallVector<Type> typelist;
+        if (!type)
+            return typelist;
         tree parmtype;
         for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
         {
@@ -145,6 +147,8 @@ private:
     llvm::SmallVector<StringRef> getElemNames(tree type)
     {
         llvm::SmallVector<StringRef> names;
+        if (!type)
+            return names;
         StringRef name;
         for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
         {
@@ -161,6 +165,8 @@ private:
        type. */
     PluginTypeBase translatePrimitiveType (tree type)
     {
+        if (!type)
+            return PluginUndefType::get(&context);
         if (TREE_CODE(type) == INTEGER_TYPE)
             return PluginIntegerType::get(&context, getBitWidth(type),
                 isUnsigned(type) ? PluginIntegerType::Unsigned : PluginIntegerType::Signed);
@@ -170,9 +176,10 @@ private:
             return PluginBooleanType::get(&context);
         if (TREE_CODE(type) == VOID_TYPE)
             return PluginVoidType::get(&context);
-        if (TREE_CODE(type) == POINTER_TYPE)
+        if (TREE_CODE(type) == POINTER_TYPE) {
             return PluginPointerType::get(&context, translatePrimitiveType(TREE_TYPE(type)),
                 TYPE_READONLY(TREE_TYPE(type)) ? 1 : 0);
+        }
         if (TREE_CODE(type) == ARRAY_TYPE)
             return PluginArrayType::get(&context,translatePrimitiveType(TREE_TYPE(type)), getDomainIndex(type));
         if (TREE_CODE(type) == VECTOR_TYPE)
@@ -182,7 +189,7 @@ private:
             return PluginFunctionType::get(&context, translatePrimitiveType(TREE_TYPE(type)),argsType);
         }
         if (TREE_CODE(type) == RECORD_TYPE) {
-            return PluginStructType::get(&context, getTypeName(type), getElemType(type), getElemNames(type));
+            return PluginStructType::get(&context, getTypeName(type), getElemNames(type));
         }
         return PluginUndefType::get(&context);
     }
@@ -295,7 +302,6 @@ private:
             return build_function_type_array(returnType, paramTypes.length (), paramTypes.address ());
         }
         if (auto Ty = type.dyn_cast<PluginStructType>()) {
-            ArrayRef<Type> elemTypes = Ty.getBody();
             ArrayRef<StringRef> elemNames = Ty.getElementNames();
             StringRef tyName = Ty.getName();
             unsigned fieldSize = elemNames.size();
@@ -305,18 +311,8 @@ private:
             unsigned i;
 
             ret = make_node (RECORD_TYPE);
-            for (i = 0; i < fieldSize; i++)
-            {
-                mlir::Type elemTy = elemTypes[i];
-                auto ty = elemTy.dyn_cast<PluginTypeBase>();
-                tree elmType = translatePrimitiveType(ty);
-                fields[i] = build_decl (UNKNOWN_LOCATION, FIELD_DECL, get_identifier (elemNames[i].str().c_str()), elmType);
-                DECL_CONTEXT (fields[i]) = ret;
-                if (i) DECL_CHAIN (fields[i - 1]) = fields[i];
-            }
             tree typeDecl = build_decl (input_location, TYPE_DECL, get_identifier (tyName.str().c_str()), ret);
             DECL_ARTIFICIAL (typeDecl) = 1;
-            TYPE_FIELDS (ret) = fields[0];
             TYPE_NAME (ret) = typeDecl;
             layout_type (ret);
             return ret;

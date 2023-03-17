@@ -379,6 +379,9 @@ vector<uint64_t> GimpleToPluginOps::GetFunctionIDs()
     function *fn = NULL;
     vector<uint64_t> functions;
     FOR_EACH_FUNCTION (node) {
+        if (!node->real_symbol_p ())
+            continue;
+        if(!node->definition) continue;
         fn = DECL_STRUCT_FUNCTION(node->decl);
         if (fn == NULL)
             continue;
@@ -820,12 +823,20 @@ FunctionOp GimpleToPluginOps::BuildFunctionOp(uint64_t functionId)
     bool declaredInline = false;
     if (DECL_DECLARED_INLINE_P(fn->decl))
         declaredInline = true;
-    tree returnType = TREE_TYPE(fn->decl);
-    PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
     auto location = builder.getUnknownLoc();
-    auto Ty = rPluginType.dyn_cast<PluginFunctionType>();
-    FunctionOp retOp = builder.create<FunctionOp>(location, functionId,
-                                        funcName, declaredInline, Ty);
+    bool validType = false;
+    tree returnType = TREE_TYPE(fn->decl);
+    FunctionOp retOp;
+    if (TREE_CODE(returnType) != FUNCTION_TYPE) {
+        retOp = builder.create<FunctionOp>(location, functionId,
+                                        funcName, declaredInline, validType);
+    } else {
+        validType = true;
+        PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
+        auto Ty = rPluginType.dyn_cast<PluginFunctionType>();
+        retOp = builder.create<FunctionOp>(location, functionId,
+                                        funcName, declaredInline, Ty, validType);
+    }
     auto& fr = retOp.bodyRegion();
     if (fn->cfg == nullptr) return retOp;
     if (!ProcessBasicBlock((intptr_t)ENTRY_BLOCK_PTR_FOR_FN(fn), fr)) {
@@ -1000,8 +1011,13 @@ CallOp GimpleToPluginOps::BuildCallOp(uint64_t gcallId)
         Value arg = TreeToValue(argId);
         ops.push_back(arg);
     }
-    tree returnType = gimple_call_return_type(stmt);
-    PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
+    // tree returnType = gimple_call_return_type(stmt);
+    // PluginTypeBase rPluginType = typeTranslator.translateType((intptr_t)returnType);
+    PluginTypeBase rPluginType = nullptr;
+    if (gimple_call_fntype (stmt) != NULL_TREE || gimple_call_lhs (stmt) != NULL_TREE) {
+        tree returnType = gimple_call_return_type(stmt);
+        rPluginType = typeTranslator.translateType((intptr_t)returnType);
+    }
     tree fndecl = gimple_call_fndecl(stmt);
     CallOp ret;
     if (fndecl == NULL_TREE || DECL_NAME(fndecl) == NULL_TREE) {
@@ -1665,6 +1681,12 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             break;
         }
         case BLOCK : {
+            if (BLOCK_VARS(t) == NULL_TREE) {
+                GetTreeAttr(treeId, readOnly, rPluginType);
+                opValue = builder.create<PlaceholderOp>(builder.getUnknownLoc(),
+                        treeId, IDefineCode::UNDEF, readOnly, rPluginType);
+                break;
+            }
             llvm::Optional<mlir::Value> vars = TreeToValue((uint64_t)BLOCK_VARS(t));
             llvm::Optional<uint64_t> supercontext = (uint64_t)BLOCK_SUPERCONTEXT(t);
             llvm::Optional<mlir::Value> subblocks = TreeToValue((uint64_t)BLOCK_SUBBLOCKS(t));
@@ -1746,7 +1768,9 @@ bool GimpleToPluginOps::ProcessGimpleStmt(intptr_t bbPtr, Region& rg)
             // Process other condition, such as return
             builder.create<RetOp>(builder.getUnknownLoc(), (uint64_t)bb);
         } else {
-            assert(false);
+            builder.create<FallThroughOp>(builder.getUnknownLoc(), (uint64_t)bb,
+                            bbTranslator->blockMaps[EDGE_SUCC(bb, 0)->dest],
+                            (uint64_t)(EDGE_SUCC(bb, 0)->dest));
         }
     }
 

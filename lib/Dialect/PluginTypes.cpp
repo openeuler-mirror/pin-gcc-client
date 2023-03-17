@@ -147,29 +147,28 @@ namespace Detail {
     };
 
     struct PluginStructTypeStorage : public TypeStorage {
-        using KeyTy = std::tuple<StringRef, ArrayRef<Type>, ArrayRef<StringRef>>;
+        using KeyTy = std::tuple<StringRef, ArrayRef<StringRef>>;
 
-        PluginStructTypeStorage(StringRef name, ArrayRef<Type> elements, ArrayRef<StringRef> elemNames)
-            : name(name), elements(elements), elemNames(elemNames) {}
+        PluginStructTypeStorage(StringRef name, ArrayRef<StringRef> elemNames)
+            : name(name), elemNames(elemNames) {}
 
         static PluginStructTypeStorage *construct(TypeStorageAllocator &allocator, KeyTy key)
         {
             return new (allocator.allocate<PluginStructTypeStorage>())
-                PluginStructTypeStorage(std::get<0>(key), allocator.copyInto(std::get<1>(key)), allocator.copyInto(std::get<2>(key)));
+                PluginStructTypeStorage(std::get<0>(key), allocator.copyInto(std::get<1>(key)));
         }
 
         static unsigned hashKey(const KeyTy &key) {
             // LLVM doesn't like hashing bools in tuples.
-            return llvm::hash_combine(std::get<0>(key), std::get<1>(key), std::get<2>(key));
+            return llvm::hash_combine(std::get<0>(key), std::get<1>(key));
         }
 
         bool operator==(const KeyTy &key) const
         {
-            return std::make_tuple(name, elements, elemNames) == key;
+            return std::make_tuple(name, elemNames) == key;
         }
 
         StringRef name;
-        ArrayRef<Type> elements;
         ArrayRef<StringRef> elemNames;
     };
 } // namespace Detail
@@ -496,19 +495,14 @@ bool PluginStructType::isValidElementType(Type type) {
   return !type.isa<PluginVoidType, PluginFunctionType>();
 }
 
-PluginStructType PluginStructType::get(MLIRContext *context, StringRef name, ArrayRef<Type> elements, ArrayRef<StringRef> elemNames)
+PluginStructType PluginStructType::get(MLIRContext *context, StringRef name, ArrayRef<StringRef> elemNames)
 {
-    return Base::get(context, name, elements, elemNames);
+    return Base::get(context, name, elemNames);
 }
 
 StringRef PluginStructType::getName()
 {
   return getImpl()->name;
-}
-
-ArrayRef<Type> PluginStructType::getBody()
-{
-  return getImpl()->elements;
 }
 
 ArrayRef<StringRef> PluginStructType::getElementNames()
