@@ -1601,7 +1601,9 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             bool addressable = TREE_ADDRESSABLE(t);
             bool used = TREE_USED(t);
             int32_t uid = DECL_UID(t);
-            mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(t));
+            // Fixme: DECL_INITIAL(t) This function causes a memory access error after repeated TreeToValue iterations.
+            // postgresql-11.3 ICE
+            mlir::Value initial = builder.create<PlaceholderOp>(builder.getUnknownLoc(), 0, IDefineCode::UNDEF, 0, rPluginType);
             mlir::Value name = TreeToValue((uint64_t)DECL_NAME(t));
             llvm::Optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
             GetTreeAttr(treeId, readOnly, rPluginType);

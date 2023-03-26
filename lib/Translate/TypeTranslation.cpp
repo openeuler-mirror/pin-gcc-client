@@ -81,7 +81,10 @@ private:
 
     unsigned getDomainIndex (tree type)
     {
-        if (TYPE_DOMAIN(type) && TYPE_MAX_VALUE(TYPE_DOMAIN(type)))
+        if (TYPE_DOMAIN(type) && TYPE_MAX_VALUE(TYPE_DOMAIN(type)) 
+            && TYPE_MIN_VALUE(TYPE_DOMAIN(type))
+            && TREE_CODE (TYPE_MIN_VALUE (TYPE_DOMAIN (type))) == INTEGER_CST
+            && TREE_CODE (TYPE_MAX_VALUE (TYPE_DOMAIN (type))) == INTEGER_CST)
             return tree_to_shwi(TYPE_MAX_VALUE(TYPE_DOMAIN(type)))+1;
         return 0;
     }
