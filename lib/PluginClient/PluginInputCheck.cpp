@@ -43,6 +43,11 @@ bool PluginInputCheck::ReadConfigfile(Json::Value& root)
     Json::Reader reader;
     std::ifstream ifs(configFilePath.c_str());
     if (!ifs.is_open()) {
+        if (serverPath == "") {
+            LOGW("open %s fail and server path is NULL! should specify server path first!\n", configFilePath.c_str());
+        } else {
+            LOGW("open %s fail! use default sha256file:%s\n", configFilePath.c_str(), shaPath.c_str());
+        }
         return false;
     }
 
