@@ -28,7 +28,7 @@
 namespace PinClient {
 using namespace mlir::Plugin;
 using namespace mlir;
-static PluginClient g_plugin;
+static PluginClient *g_plugin;
 
 std::map<InjectPoint, plugin_event> g_injectPoint {
     {HANDLE_PARSE_TYPE, PLUGIN_FINISH_TYPE},
@@ -47,7 +47,10 @@ std::map<InjectPoint, plugin_event> g_injectPoint {
 
 PluginClient *PluginClient::GetInstance()
 {
-    return &g_plugin;
+    if (g_plugin == nullptr) {
+        g_plugin = new PluginClient();
+    }
+    return g_plugin;
 }
 
 int PluginClient::GetEvent(InjectPoint inject, plugin_event *event)
