@@ -26,6 +26,7 @@
 #define PLUGIN_DIALECT_TD
 
 include "mlir/IR/OpBase.td"
+include "mlir/IR/EnumAttr.td"
 
 //===----------------------------------------------------------------------===//
 // Plugin Dialect Definition.
@@ -38,6 +39,10 @@ def Plugin_Dialect : Dialect {
   let summary = "The Plugin Dialect.";
   let description = [{}];
   let cppNamespace = "::mlir::Plugin";
+
+  let extraClassDeclaration = [{
+    void registerTypes();
+  }];
 }
 
 // Base class for Plugin dialect operations. This operation inherits from the base
@@ -45,7 +50,7 @@ def Plugin_Dialect : Dialect {
 //   * The parent dialect of the operation.
 //   * The mnemonic for the operation, or the name without the dialect prefix.
 //   * A list of traits for the operation.
-class Plugin_Op<string mnemonic, list<OpTrait> traits = []> :
+class Plugin_Op<string mnemonic, list<Trait> traits = []> :
     Op<Plugin_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//

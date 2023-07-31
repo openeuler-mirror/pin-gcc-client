@@ -29,22 +29,16 @@
 using namespace mlir;
 using namespace mlir::Plugin;
 
+#include "Dialect/PluginOpsDialect.cpp.inc"
+#include "Dialect/PluginOpsEnums.cpp.inc"
+
 // ===----------------------------------------------------------------------===//
 // Plugin dialect.
 // ===----------------------------------------------------------------------===//
 
 void PluginDialect::initialize()
 {
-    addTypes<PluginIR::PluginIntegerType,
-        PluginIR::PluginFloatType,
-        PluginIR::PluginPointerType,
-        PluginIR::PluginArrayType,
-        PluginIR::PluginVectorType,
-        PluginIR::PluginFunctionType,
-        PluginIR::PluginStructType,
-        PluginIR::PluginBooleanType,
-        PluginIR::PluginVoidType,
-        PluginIR::PluginUndefType>();
+    registerTypes();
 
     addOperations<
 #define GET_OP_LIST
