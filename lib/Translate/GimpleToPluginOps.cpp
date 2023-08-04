@@ -640,7 +640,7 @@ vector<LoopOp> GimpleToPluginOps::GetAllLoops(uint64_t funcID)
     vector<LoopOp> loops;
     enum li_flags LI = LI_FROM_INNERMOST;
     class loop *loop;
-    FOR_EACH_LOOP(loop, LI) {
+    for (auto loop : loops_list (cfun, LI)) {
         uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(loop));
         LoopOp pluginLoop;
         if (!id) {
