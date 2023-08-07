@@ -356,7 +356,9 @@ void CallOp::build(OpBuilder &builder, OperationState &state,
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addAttribute("address", builder.getI64IntegerAttr(address));
     state.addOperands(arguments);
-    state.addAttribute("callee", builder.getSymbolRefAttr(callee));
+    //state.addAttribute("callee", builder.getSymbolRefAttr(callee));
+    state.addAttribute("callee",
+                     mlir::SymbolRefAttr::get(builder.getContext(), callee));
     if (retType != nullptr) state.addTypes(retType);
 }
 
