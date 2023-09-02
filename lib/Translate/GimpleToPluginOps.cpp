@@ -1505,9 +1505,14 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
                 unsigned HOST_WIDE_INT uinit = tree_to_uhwi(t);
                 initAttr = builder.getI64IntegerAttr(uinit);
             } else {
-                abort();
+                wide_int val = wi::to_wide(t);
+                if (wi::neg_p(val, TYPE_SIGN(TREE_TYPE(t)))) {
+                    val = -val;
+                }
+                signed HOST_WIDE_INT init = val.to_shwi();
+                initAttr = builder.getI64IntegerAttr(init);
             }
-			GetTreeAttr(treeId, readOnly, rPluginType);
+            GetTreeAttr(treeId, readOnly, rPluginType);
             opValue = builder.create<ConstOp>(
                     builder.getUnknownLoc(), treeId, IDefineCode::IntCST,
                     readOnly, initAttr, rPluginType);
