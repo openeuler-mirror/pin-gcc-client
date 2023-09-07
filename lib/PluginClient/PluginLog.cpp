@@ -27,6 +27,7 @@
 #include <memory>
 #include <mutex>
 #include <csignal>
+#include <unistd.h>
 #include "PluginClient/PluginLog.h"
 
 namespace PinClient {
