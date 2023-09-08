@@ -33,6 +33,7 @@ include(TableGen)
 include(AddLLVM)
 include(AddMLIR)
 
+include_directories(${GRPC_INCLUDE_DIR})
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR}/include)
