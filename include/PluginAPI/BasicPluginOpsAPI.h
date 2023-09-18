@@ -48,6 +48,7 @@ public:
     virtual string FuncName(int64_t gccDataAddr) = 0;
     virtual int GetDeclSourceLine(uint64_t gccDataAddr) = 0;
     virtual int GetDeclSourceColumn(uint64_t gccDataAddr) = 0;
+    virtual void ShutdownCompile() = 0;
 
     // CGnode
     virtual vector<uint64_t> GetCGnodeIDs() = 0;

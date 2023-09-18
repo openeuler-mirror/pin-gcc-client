@@ -25,6 +25,10 @@
 #include "Dialect/PluginTypes.h"
 #include "PluginAPI/PluginClientAPI.h"
 
+#include "gcc-plugin.h"
+#include "plugin-version.h"
+#include "toplev.h"
+#include "opts.h"
 namespace PinClient {
 using namespace mlir::Plugin;
 using namespace mlir;
@@ -341,6 +345,16 @@ void SetDeclAlignResult(PluginClient *client, Json::Value& root, string& result)
     clientAPI.SetDeclAlign(newfieldId, fieldId);
     PluginJson json = client->GetJson();
     json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void ShutdownCompile(PluginClient *client, Json::Value& root, string& result)
+{
+    // Load our Dialect in this MLIR Context.
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    clientAPI.ShutdownCompile();
     client->ReceiveSendMsg("VoidResult", result);
 }
 
@@ -1335,6 +1349,7 @@ std::map<string, GetResultFunc> g_getResultFunc = {
     {"IsDomInfoAvailable", IsDomInfoAvailableResult},
     {"GetCurrentDefFromSSA", GetCurrentDefFromSSAResult},
     {"SetCurrentDefInSSA", SetCurrentDefInSSAResult},
+    {"ShutdownCompile", ShutdownCompile},
     {"CopySSAOp", CopySSAOpResult},
     {"CreateSSAOp", CreateSSAOpResult},
     {"CreateNewDef", CreateNewDefResult},
@@ -1543,7 +1558,12 @@ static bool WaitServer(const string& port)
     mode_t mask = umask(0);
     mode_t mode = 0666; // 权限是rwrwrw，跨进程时，其他用户也要可以访问
     string semFile = "wait_server_startup" + port;
-    sem_t *sem = sem_open(semFile.c_str(), O_CREAT, mode, 0);
+    sem_t *sem = sem_open(semFile.c_str(), O_CREAT | O_EXCL, mode, 0);
+    // Semaphore exception handling.
+    if (sem == SEM_FAILED) {
+        sem_unlink(semFile.c_str());
+        sem = sem_open(semFile.c_str(), O_CREAT, mode, 0);
+    }
     umask(mask);
     int i = 0;
     for (; i < cnt; i++) {
@@ -1561,11 +1581,60 @@ static bool WaitServer(const string& port)
     return true;
 }
 
+bool ExecuteWithCommand(string serverPath, string port, string level)
+{
+    string inputFile (main_input_filename);
+    string cwd = get_current_dir_name();
+
+    string outputName="";
+    for (int i = 0; i< save_decoded_options_count; ++i) {
+        if (!strcmp(save_decoded_options[i].canonical_option[0],"-o")) {
+            outputName = save_decoded_options[i].canonical_option[1];
+        }
+    }
+
+    string common_opt = "";
+    for (int i = 0; i< save_decoded_options_count; ++i) {
+        if (!strcmp(save_decoded_options[i].canonical_option[0],"-I") ||
+            !strcmp(save_decoded_options[i].canonical_option[0],"-D")) {
+            common_opt.append(save_decoded_options[i].canonical_option[0]);
+            common_opt.append(save_decoded_options[i].canonical_option[1]);
+            common_opt.append(" ");
+        }
+        if (!strcmp(save_decoded_options[i].canonical_option[0],"-std=gnu90")) {
+            common_opt.append(" -std=gnu90 ");
+        }
+    }
+
+    string extra_opt = "";
+    for (int i = 0; i< save_decoded_options_count; ++i) {
+        if (strcmp(save_decoded_options[i].canonical_option[0],"-I") &&
+	        strcmp(save_decoded_options[i].canonical_option[0],"-D") &&
+	        strcmp(save_decoded_options[i].canonical_option[0],"-o")) {
+            extra_opt.append(save_decoded_options[i].canonical_option[0]);
+	        extra_opt.append(" ");
+        }
+    }
+
+    if (execl(serverPath.c_str(), port.c_str(), level.c_str(),
+              inputFile.c_str(), cwd.c_str(), common_opt.c_str(), extra_opt.c_str(), outputName.c_str(), NULL) == -1)
+    {
+        return true;
+    }
+    return false;
+
+}
+
 int PluginClient::ServerStart(pid_t& pid)
 {
     if (!grpcPort.FindUnusedPort()) {
-        LOGE("cannot find port for grpc,port 40001-65535 all used!\n");
-        return -1;
+        // Rectify the fault that the port number is not released
+        // because the client is abnormal.
+        LOGW("cannot find port for grpc, try again!\n");
+        if (!grpcPort.FindUnusedPort()) {
+            LOGE("cannot find port for grpc,port 40001-65534 all used!\n");
+            return -1;
+        }
     }
 
     int ret = 0;
@@ -1575,7 +1644,8 @@ int PluginClient::ServerStart(pid_t& pid)
     if (pid == 0) {
         LOGI("start plugin server!\n");
         string serverPath = input.GetServerPath();
-        if (execl(serverPath.c_str(), port.c_str(), std::to_string(input.GetLogLevel()).c_str(), NULL) == -1) {
+        string level = std::to_string(input.GetLogLevel());
+        if (ExecuteWithCommand(serverPath, port, level)) {
             DeleteGrpcPort();
             LOGE("server start fail! please check serverPath:%s\n", serverPath.c_str());
             ret = -1;
