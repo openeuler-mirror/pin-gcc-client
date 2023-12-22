@@ -274,6 +274,12 @@ LoopOp PluginClientAPI::GetBlockLoopFather(uint64_t blockId)
 {
     return gimpleConversion.GetBlockLoopFather(blockId);
 }
+
+LoopOp PluginClientAPI::FindCommonLoop(uint64_t opId_1, uint64_t opId_2)
+{
+    return gimpleConversion.FindCommonLoop(opId_1, opId_2);
+}
+
 PhiOp PluginClientAPI::GetPhiOp(uint64_t id)
 {
     return gimpleConversion.BuildPhiOp(id);
@@ -345,6 +351,11 @@ vector<mlir::Plugin::PhiOp> PluginClientAPI::GetPhiOpsInsideBlock(uint64_t bb)
     return gimpleConversion.GetPhiOpsInsideBlock(bb);
 }
 
+vector<uint64_t> PluginClientAPI::GetOpsInsideBlock(uint64_t bb)
+{
+    return gimpleConversion.GetOpsInsideBlock(bb);
+}
+
 bool PluginClientAPI::IsDomInfoAvailable()
 {
     return gimpleConversion.IsDomInfoAvailable();
@@ -380,9 +391,24 @@ mlir::Value PluginClientAPI::GetValue(uint64_t valId)
     return gimpleConversion.TreeToValue(valId);
 }
 
+bool PluginClientAPI::IsVirtualOperand(uint64_t id)
+{
+    return gimpleConversion.IsVirtualOperand(id);
+}
+
 void PluginClientAPI::DebugValue(uint64_t valId)
 {
     gimpleConversion.DebugValue(valId);
+}
+
+void PluginClientAPI::DebugOperation(uint64_t opId)
+{
+    gimpleConversion.DebugOperation(opId);
+}
+
+void PluginClientAPI::DebugBlock(uint64_t bb)
+{
+    gimpleConversion.DebugBlock(bb);
 }
 
 mlir::Value PluginClientAPI::BuildMemRef(PluginIR::PluginTypeBase type,
@@ -411,4 +437,58 @@ bool PluginClientAPI::IsWholeProgram()
     return gimpleConversion.IsWholeProgram();
 }
 
+void PluginClientAPI::CalDominanceInfo(uint64_t dir, uint64_t funcID)
+{
+    return gimpleConversion.CalDominanceInfo(dir, funcID);
+}
+
+vector<uint64_t> PluginClientAPI::GetImmUseStmts(uint64_t varId)
+{
+    return gimpleConversion.GetImmUseStmts(varId);
+}
+
+mlir::Value PluginClientAPI::GetGimpleVuse(uint64_t opId)
+{
+    return gimpleConversion.GetGimpleVuse(opId);
+}
+
+mlir::Value PluginClientAPI::GetGimpleVdef(uint64_t opId)
+{
+    return gimpleConversion.GetGimpleVdef(opId);
+}
+
+vector<mlir::Value> PluginClientAPI::GetSsaUseOperand(uint64_t opId)
+{
+    return gimpleConversion.GetSsaUseOperand(opId);
+}
+
+vector<mlir::Value> PluginClientAPI::GetSsaDefOperand(uint64_t opId)
+{
+    return gimpleConversion.GetSsaDefOperand(opId);
+}
+
+vector<mlir::Value> PluginClientAPI::GetPhiOrStmtUse(uint64_t opId)
+{
+    return gimpleConversion.GetPhiOrStmtUse(opId);
+}
+
+vector<mlir::Value> PluginClientAPI::GetPhiOrStmtDef(uint64_t opId)
+{
+    return gimpleConversion.GetPhiOrStmtDef(opId);
+}
+
+bool PluginClientAPI::RefsMayAlias(uint64_t id1, uint64_t id2, uint64_t flag)
+{
+    return gimpleConversion.RefsMayAlias(id1, id2, flag);
+}
+
+bool PluginClientAPI::PTIncludesDecl(uint64_t ptrId, uint64_t declId)
+{
+    return gimpleConversion.PTIncludesDecl(ptrId, declId);
+}
+
+bool PluginClientAPI::PTsIntersect(uint64_t ptrId_1, uint64_t ptrId_2)
+{
+    return gimpleConversion.PTsIntersect(ptrId_1, ptrId_2);
+}
 } // namespace PluginAPI

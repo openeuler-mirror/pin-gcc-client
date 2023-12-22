@@ -117,6 +117,7 @@ enum RefPassName {
     PASS_PHIOPT,
     PASS_SSA,
     PASS_LOOP,
+    PASS_LAD,
     PASS_MAC,
 };
 

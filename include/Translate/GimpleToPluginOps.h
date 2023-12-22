@@ -109,6 +109,7 @@ public:
     vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t);
     std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t);
     LoopOp GetBlockLoopFather(uint64_t);
+    LoopOp FindCommonLoop(uint64_t, uint64_t);
     CallOp BuildCallOp(uint64_t);
     bool SetGimpleCallLHS(uint64_t, uint64_t);
     uint32_t AddPhiArg(uint64_t, uint64_t, uint64_t, uint64_t);
@@ -140,9 +141,12 @@ public:
     void GetTreeAttr(uint64_t, bool&, PluginTypeBase&);
     mlir::Value TreeToValue(uint64_t);
     void DebugValue(uint64_t);
+    void DebugOperation(uint64_t);
+    void DebugBlock(uint64_t);
     mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t);
     bool UpdateSSA();
     vector<mlir::Plugin::PhiOp> GetPhiOpsInsideBlock(uint64_t);
+    vector<uint64_t> GetOpsInsideBlock(uint64_t);
     bool IsDomInfoAvailable();
     mlir::Value CreateNewDefFor(uint64_t, uint64_t, uint64_t);
     bool SetCurrentDefFor(uint64_t, uint64_t);
@@ -155,6 +159,20 @@ public:
 
     bool IsLtoOptimize();
     bool IsWholeProgram();
+
+    bool IsVirtualOperand(uint64_t);
+
+    void CalDominanceInfo(uint64_t, uint64_t);
+    vector<uint64_t> GetImmUseStmts(uint64_t);
+    mlir::Value GetGimpleVuse(uint64_t);
+    mlir::Value GetGimpleVdef(uint64_t);
+    vector<mlir::Value> GetSsaUseOperand(uint64_t);
+    vector<mlir::Value> GetSsaDefOperand(uint64_t);
+    vector<mlir::Value> GetPhiOrStmtUse(uint64_t);
+    vector<mlir::Value> GetPhiOrStmtDef(uint64_t);
+    bool RefsMayAlias(uint64_t, uint64_t, uint64_t);
+    bool PTIncludesDecl(uint64_t, uint64_t);
+    bool PTsIntersect(uint64_t, uint64_t);
 
 private:
     GimpleToPluginOps () = delete;

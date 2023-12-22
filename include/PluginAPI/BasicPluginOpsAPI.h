@@ -100,6 +100,7 @@ public:
     virtual vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t) = 0;
     virtual std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t) = 0;
     virtual LoopOp GetBlockLoopFather(uint64_t) = 0;
+    virtual LoopOp FindCommonLoop(uint64_t, uint64_t) = 0;
     virtual PhiOp GetPhiOp(uint64_t) = 0;
     virtual CallOp GetCallOp(uint64_t) = 0;
     virtual bool SetLhsInCallOp(uint64_t, uint64_t) = 0;
@@ -118,15 +119,32 @@ public:
     virtual PhiOp CreatePhiOp(uint64_t, uint64_t) = 0;
     virtual bool UpdateSSA() = 0;
     virtual vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) = 0;
+    virtual vector<uint64_t> GetOpsInsideBlock(uint64_t bb) = 0;
     virtual bool IsDomInfoAvailable() = 0;
     virtual mlir::Value GetValue(uint64_t) = 0;
     virtual void DebugValue(uint64_t) = 0;
+    virtual void DebugOperation(uint64_t) = 0;
+    virtual void DebugBlock(uint64_t) = 0;
     virtual mlir::Value BuildMemRef(PluginTypeBase, uint64_t, uint64_t) = 0;
     virtual void RedirectFallthroughTarget(uint64_t, uint64_t) = 0;
     virtual void RemoveEdge(uint64_t, uint64_t) = 0;
 
     virtual bool IsLtoOptimize() = 0;
     virtual bool IsWholeProgram() = 0;
+
+    virtual bool IsVirtualOperand(uint64_t) = 0;
+
+    virtual void CalDominanceInfo(uint64_t, uint64_t) = 0;
+    virtual vector<uint64_t> GetImmUseStmts(uint64_t) = 0;
+    virtual mlir::Value GetGimpleVuse(uint64_t) = 0;
+    virtual mlir::Value GetGimpleVdef(uint64_t) = 0;
+    virtual vector<mlir::Value> GetSsaUseOperand(uint64_t) = 0;
+    virtual vector<mlir::Value> GetSsaDefOperand(uint64_t) = 0;
+    virtual vector<mlir::Value> GetPhiOrStmtUse(uint64_t) = 0;
+    virtual vector<mlir::Value> GetPhiOrStmtDef(uint64_t) = 0;
+    virtual bool RefsMayAlias(uint64_t, uint64_t, uint64_t) = 0;
+    virtual bool PTIncludesDecl(uint64_t, uint64_t) = 0;
+    virtual bool PTsIntersect(uint64_t, uint64_t) = 0;
 }; // class BasicPluginOpsAPI
 } // namespace PluginAPI
 

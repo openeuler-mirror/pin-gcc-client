@@ -49,6 +49,8 @@
 #include "dominance.h"
 #include "print-tree.h"
 #include "stor-layout.h"
+#include "ssa-iterators.h"
+#include <iostream>
 
 namespace PluginIR {
 using namespace mlir::Plugin;
@@ -754,7 +756,7 @@ void GimpleToPluginOps::SetLatch(uint64_t loopID, uint64_t blockID)
 vector<std::pair<uint64_t, uint64_t> > GimpleToPluginOps::GetLoopExits(uint64_t loopID)
 {
     class loop *loop = reinterpret_cast<class loop *>(loopID);
-    vec<edge> exit_edges = get_loop_exit_edges(loop);
+    auto_vec<edge> exit_edges = get_loop_exit_edges(loop);
     edge e;
     unsigned i = 0;
     vector<std::pair<uint64_t, uint64_t> > res;
@@ -778,6 +780,22 @@ LoopOp GimpleToPluginOps::GetBlockLoopFather(uint64_t blockID)
 {
     basic_block bb = reinterpret_cast<basic_block>(reinterpret_cast<void*>(blockID));
     class loop *loop = bb->loop_father;
+    LoopOp pluginLoop;
+    auto location = builder.getUnknownLoc();
+    uint64_t id = reinterpret_cast<uint64_t>(loop);
+    uint32_t index = (uint32_t)loop->num;
+    uint64_t innerLoopId = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(loop->inner));
+    uint64_t outerLoopId = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(loop_outer(loop)));
+    uint32_t numBlock = loop->num_nodes;
+    pluginLoop = builder.create<LoopOp>(location, id, index, innerLoopId, outerLoopId, numBlock);
+    return pluginLoop;
+}
+
+LoopOp GimpleToPluginOps::FindCommonLoop(uint64_t loopId_1, uint64_t loopId_2)
+{
+    class loop *loop_s = reinterpret_cast<class loop *>(loopId_1);
+    class loop *loop_d = reinterpret_cast<class loop *>(loopId_2);
+    class loop *loop = find_common_loop(loop_s, loop_d);
     LoopOp pluginLoop;
     auto location = builder.getUnknownLoc();
     uint64_t id = reinterpret_cast<uint64_t>(loop);
@@ -1721,6 +1739,19 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
 void GimpleToPluginOps::DebugValue(uint64_t valId)
 {
     tree t = reinterpret_cast<tree>(valId);
+    debug_tree(t);
+}
+
+void GimpleToPluginOps::DebugOperation(uint64_t opId)
+{
+    gimple *stmt = reinterpret_cast<gimple*>(opId);
+    debug_gimple_stmt(stmt);
+}
+
+void GimpleToPluginOps::DebugBlock(uint64_t bb)
+{
+    basic_block BB = reinterpret_cast<basic_block>(bb);
+    debug_bb(BB);
 }
 
 mlir::Value GimpleToPluginOps::BuildMemRef(PluginIR::PluginTypeBase type, uint64_t baseId, uint64_t offsetId)
@@ -1828,6 +1859,27 @@ vector<PhiOp> GimpleToPluginOps::GetPhiOpsInsideBlock(uint64_t bb)
     return phiOps;
 }
 
+vector<uint64_t> GimpleToPluginOps::GetOpsInsideBlock(uint64_t bb)
+{
+    basic_block header = reinterpret_cast<basic_block>(bb);
+    vector<uint64_t> ops;
+    gimple_stmt_iterator gsi;
+    int i = 0;
+    for (gsi = gsi_start_bb (header);
+		   !gsi_end_p (gsi);
+		   gsi_next (&gsi))
+    {
+        gimple *s = gsi_stmt(gsi);
+        if (gimple_code(s) == GIMPLE_DEBUG) continue;
+        uint64_t id =  reinterpret_cast<uint64_t>(reinterpret_cast<void*>(s));
+        if (gimple_code(s) == GIMPLE_ASSIGN) {
+            BuildAssignOp(id);
+        }
+        ops.push_back(id);
+    }
+    return ops;
+}
+
 bool GimpleToPluginOps::IsDomInfoAvailable()
 {
     return dom_info_available_p (CDI_DOMINATORS);
@@ -1885,6 +1937,169 @@ Value GimpleToPluginOps::MakeSsaName(mlir::Type type)
     uint64_t retId = reinterpret_cast<uint64_t>(
             reinterpret_cast<void*>(ret));
     return TreeToValue(retId);
+}
+
+bool GimpleToPluginOps::IsVirtualOperand(uint64_t id)
+{
+    tree op = reinterpret_cast<tree>(id);
+    return virtual_operand_p (op);
+}
+
+void GimpleToPluginOps::CalDominanceInfo(uint64_t dir, uint64_t funcID)
+{
+    function *fn = reinterpret_cast<function *>(funcID);
+    push_cfun(fn);
+    if (dir == 1) {
+        calculate_dominance_info(CDI_DOMINATORS);
+    } else if (dir == 2) {
+        calculate_dominance_info(CDI_POST_DOMINATORS);
+    } else {
+        abort();
+    }
+    pop_cfun();
+}
+
+vector<uint64_t> GimpleToPluginOps::GetImmUseStmts(uint64_t varId)
+{
+    vector<uint64_t> opsId;
+    tree var = reinterpret_cast<tree>(varId);
+    imm_use_iterator imm_iter;
+    gimple *stmt;
+    FOR_EACH_IMM_USE_STMT (stmt, imm_iter, var) {
+        uint64_t id = reinterpret_cast<uint64_t>(reinterpret_cast<void*>(stmt));
+        opsId.push_back(id);
+    }
+    return opsId;
+}
+
+
+mlir::Value GimpleToPluginOps::GetGimpleVuse(uint64_t opId)
+{
+    gimple *stmt = reinterpret_cast<gimple*>(opId);
+    tree vuse = gimple_vuse(stmt);
+    mlir::Value v = TreeToValue(reinterpret_cast<uint64_t>(reinterpret_cast<void*>(vuse)));
+    return v;
+}
+
+mlir::Value GimpleToPluginOps::GetGimpleVdef(uint64_t opId)
+{
+    gimple *stmt = reinterpret_cast<gimple*>(opId);
+    tree vdef = gimple_vdef(stmt);
+    mlir::Value v = TreeToValue(reinterpret_cast<uint64_t>(reinterpret_cast<void*>(vdef)));
+    return v;
+}
+
+vector<mlir::Value> GimpleToPluginOps::GetSsaUseOperand(uint64_t opId)
+{
+    vector<mlir::Value> ret;
+    gimple *stmt = reinterpret_cast<gimple*>(opId);
+    use_operand_p use_p;
+    ssa_op_iter oi;
+    FOR_EACH_SSA_USE_OPERAND (use_p, stmt, oi, SSA_OP_USE) {
+        tree op = USE_FROM_PTR (use_p);
+        if (TREE_CODE (op) != SSA_NAME) {
+            continue;
+        }
+        mlir::Value v = TreeToValue(reinterpret_cast<uint64_t>(reinterpret_cast<void*>(op)));
+        ret.push_back(v);
+    }
+    return ret;
+}
+
+vector<mlir::Value> GimpleToPluginOps::GetSsaDefOperand(uint64_t opId)
+{
+    vector<mlir::Value> ret;
+    gimple *stmt = reinterpret_cast<gimple*>(opId);
+    def_operand_p def_p;
+    ssa_op_iter oi;
+    FOR_EACH_SSA_DEF_OPERAND (def_p, stmt, oi, SSA_OP_DEF) {
+        tree op = DEF_FROM_PTR (def_p);
+        if (TREE_CODE (op) != SSA_NAME) {
+            continue;
+        }
+        mlir::Value v = TreeToValue(reinterpret_cast<uint64_t>(reinterpret_cast<void*>(op)));
+        ret.push_back(v);
+    }
+    return ret;
+}
+
+vector<mlir::Value> GimpleToPluginOps::GetPhiOrStmtUse(uint64_t opId)
+{
+    vector<mlir::Value> ret;
+    gimple *stmt = reinterpret_cast<gimple*>(opId);
+    use_operand_p use_p;
+    ssa_op_iter oi;
+    FOR_EACH_PHI_OR_STMT_USE (use_p, stmt, oi, SSA_OP_USE) {
+        tree op = USE_FROM_PTR (use_p);
+        mlir::Value v = TreeToValue(reinterpret_cast<uint64_t>(reinterpret_cast<void*>(op)));
+        ret.push_back(v);
+    }
+    return ret;
+}
+
+vector<mlir::Value> GimpleToPluginOps::GetPhiOrStmtDef(uint64_t opId)
+{
+    vector<mlir::Value> ret;
+    gimple *stmt = reinterpret_cast<gimple*>(opId);
+    def_operand_p def_p;
+    ssa_op_iter oi;
+    FOR_EACH_PHI_OR_STMT_DEF (def_p, stmt, oi, SSA_OP_DEF) {
+        tree op = DEF_FROM_PTR (def_p);
+        mlir::Value v = TreeToValue(reinterpret_cast<uint64_t>(reinterpret_cast<void*>(op)));
+        ret.push_back(v);
+    }
+    return ret;
+}
+
+string parser_generic_tree_node(tree node)
+{
+    FILE *fp = tmpfile();
+    if(fp==nullptr){
+        return "";
+    }
+    pretty_printer buffer;
+    pp_needs_newline(&buffer)=true;
+    buffer.buffer->stream = fp;
+    dump_generic_node(&buffer, node, 0, TDF_SLIM, false);
+    std::string str(pp_formatted_text(&buffer));
+    pp_newline_and_flush(&buffer);
+    fclose(fp);
+    return str;
+}
+
+bool GimpleToPluginOps::RefsMayAlias(uint64_t id1, uint64_t id2, uint64_t flag)
+{
+    tree ref1 = reinterpret_cast<tree>(id1);
+    tree ref2 = reinterpret_cast<tree>(id2);
+    bool tbaa_p = false;
+    if (flag) tbaa_p = true; 
+    return refs_may_alias_p (ref1, ref2, tbaa_p);
+}
+
+bool GimpleToPluginOps::PTIncludesDecl(uint64_t ptrId, uint64_t declId)
+{
+    tree ptr = reinterpret_cast<tree>(ptrId);
+    tree decl = reinterpret_cast<tree>(declId);
+    struct ptr_info_def *pi = SSA_NAME_PTR_INFO (ptr);
+    if(!pi) return false;
+    if(!decl){
+        std::cout<<"this decl is invalid!";
+        return false;
+    }
+    if(is_global_var(decl)){
+        std::cout<<"decl is global var!"<<std::endl;
+    }
+    return pt_solution_includes(&pi->pt, decl);
+}
+
+bool GimpleToPluginOps::PTsIntersect(uint64_t ptrId_1, uint64_t ptrId_2)
+{
+    tree ptr_1 = reinterpret_cast<tree>(ptrId_1);
+    tree ptr_2 = reinterpret_cast<tree>(ptrId_2);
+    struct ptr_info_def *pi_1 = SSA_NAME_PTR_INFO (ptr_1);
+    struct ptr_info_def *pi_2 = SSA_NAME_PTR_INFO (ptr_2);
+    if(!pi_1 || !pi_2) return false;
+    return pt_solutions_intersect(&pi_1->pt, &pi_2->pt);
 }
 
 } // namespace PluginIR

@@ -839,6 +839,19 @@ void GetBlockLoopFatherResult(PluginClient *client, Json::Value& root, string& r
     client->ReceiveSendMsg("LoopOpResult", result);
 }
 
+void FindCommonLoopResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t loopId_1 = atol(root["loopId_1"].asString().c_str());
+    uint64_t loopId_2 = atol(root["loopId_2"].asString().c_str());
+    LoopOp commonLoop = clientAPI.FindCommonLoop(loopId_1, loopId_2);
+    PluginJson json = client->GetJson();
+    json.LoopOpJsonSerialize(commonLoop, result);
+    client->ReceiveSendMsg("LoopOpResult", result);
+}
+
 void CreateBlockResult(PluginClient *client, Json::Value& root, string& result)
 {
     /// Json格式
@@ -942,7 +955,7 @@ void GetPhiOpResult(PluginClient *client, Json::Value& root, string& result)
     PhiOp op = clientAPI.GetPhiOp(id);
     PluginJson json = client->GetJson();
     Json::Value phiOpResult = json.PhiOpJsonSerialize(op);
-    client->ReceiveSendMsg("OpsResult", phiOpResult.toStyledString());
+    client->ReceiveSendMsg("OpResult", phiOpResult.toStyledString());
 }
 
 void GetCallOpResult(PluginClient *client, Json::Value& root, string& result)
@@ -954,7 +967,7 @@ void GetCallOpResult(PluginClient *client, Json::Value& root, string& result)
     CallOp op = clientAPI.GetCallOp(id);
     PluginJson json = client->GetJson();
     Json::Value opResult = json.CallOpJsonSerialize(op);
-    client->ReceiveSendMsg("OpsResult", opResult.toStyledString());
+    client->ReceiveSendMsg("OpResult", opResult.toStyledString());
 }
 
 void SetLhsInCallOpResult(PluginClient *client, Json::Value& root, string& result)
@@ -1068,7 +1081,7 @@ void CreatePhiOpResult(PluginClient *client, Json::Value& root, string& result)
     PhiOp op = clientAPI.CreatePhiOp(argId, blockId);
     PluginJson json = client->GetJson();
     Json::Value opResult = json.PhiOpJsonSerialize(op);
-    client->ReceiveSendMsg("OpsResult", opResult.toStyledString());
+    client->ReceiveSendMsg("OpResult", opResult.toStyledString());
 }
 
 void CreateConstOpResult(PluginClient *client, Json::Value& root, string& result)
@@ -1104,6 +1117,18 @@ void GetAllPhiOpInsideBlockResult(PluginClient *client, Json::Value& root, strin
     PluginJson json = client->GetJson();
     json.GetPhiOpsJsonSerialize(phiOps, result);
     client->ReceiveSendMsg("GetPhiOps", result);
+}
+
+void GetAllOpsInsideBlockResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t bb = atol(root["bbAddr"].asString().c_str());
+    vector<uint64_t> opsId = clientAPI.GetOpsInsideBlock(bb);
+    PluginJson json = client->GetJson();
+    json.IDsJsonSerialize(opsId, result);
+    client->ReceiveSendMsg("IdsResult", result);
 }
 
 void IsDomInfoAvailableResult(PluginClient *client, Json::Value& root, string& result)
@@ -1172,6 +1197,136 @@ void CreateNewDefResult(PluginClient *client, Json::Value& root, string& result)
     client->ReceiveSendMsg("ValueResult", json.ValueJsonSerialize(ret).toStyledString());
 }
 
+void CalDominanceInfoResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string dirIdKey = "dir";
+    uint64_t dir = atol(root[dirIdKey].asString().c_str());
+    uint64_t funcId = atol(root["funcId"].asString().c_str());
+    clientAPI.CalDominanceInfo(dir, funcId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void GetImmUseStmtsResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t varId = atol(root["varId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    vector<uint64_t> opsId = clientAPI.GetImmUseStmts(varId);
+    PluginJson json = client->GetJson();
+    json.IDsJsonSerialize(opsId, result);
+    client->ReceiveSendMsg("IdsResult", result);
+}
+
+void GetGimpleVuseResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t opId = atol(root["opId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    mlir::Value vuse = clientAPI.GetGimpleVuse(opId);
+    PluginJson json = client->GetJson();
+    client->ReceiveSendMsg("ValueResult", json.ValueJsonSerialize(vuse).toStyledString());
+}
+
+void GetGimpleVdefResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t opId = atol(root["opId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    mlir::Value vdef = clientAPI.GetGimpleVdef(opId);
+    PluginJson json = client->GetJson();
+    client->ReceiveSendMsg("ValueResult", json.ValueJsonSerialize(vdef).toStyledString());
+}
+
+void GetSsaUseOperandResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t opId = atol(root["opId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    vector<mlir::Value> ret = clientAPI.GetSsaUseOperand(opId);
+    PluginJson json = client->GetJson();
+    json.ValuesJsonSerialize(ret, result);
+    client->ReceiveSendMsg("ValuesResult", result);
+}
+
+void GetSsaDefOperandResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t opId = atol(root["opId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    vector<mlir::Value> ret = clientAPI.GetSsaDefOperand(opId);
+    PluginJson json = client->GetJson();
+    json.ValuesJsonSerialize(ret, result);
+    client->ReceiveSendMsg("ValuesResult", result);
+}
+
+void GetPhiOrStmtUseResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t opId = atol(root["opId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    vector<mlir::Value> ret = clientAPI.GetPhiOrStmtUse(opId);
+    PluginJson json = client->GetJson();
+    json.ValuesJsonSerialize(ret, result);
+    client->ReceiveSendMsg("ValuesResult", result);
+}
+
+void GetPhiOrStmtDefResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t opId = atol(root["opId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    vector<mlir::Value> ret = clientAPI.GetPhiOrStmtDef(opId);
+    PluginJson json = client->GetJson();
+    json.ValuesJsonSerialize(ret, result);
+    client->ReceiveSendMsg("ValuesResult", result);
+}
+
+void RefsMayAliasResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t id1 = atol(root["id1"].asString().c_str());
+    uint64_t id2 = atol(root["id2"].asString().c_str());
+    uint64_t flag = atol(root["flag"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    bool ret = clientAPI.RefsMayAlias(id1, id2, flag);
+    client->ReceiveSendMsg("BoolResult", std::to_string(ret));
+}
+
+void PTIncludesDeclResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t ptrId = atol(root["ptrId"].asString().c_str());
+    uint64_t declId = atol(root["declId"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    bool ret = clientAPI.PTIncludesDecl(ptrId, declId);
+    client->ReceiveSendMsg("BoolResult", std::to_string(ret));
+}
+
+void PTsIntersectResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t ptrId_1 = atol(root["ptrId_1"].asString().c_str());
+    uint64_t ptrId_2 = atol(root["ptrId_2"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    bool ret = clientAPI.PTsIntersect(ptrId_1, ptrId_2);
+    client->ReceiveSendMsg("BoolResult", std::to_string(ret));
+}
+
 void RemoveEdgeResult(PluginClient *client, Json::Value& root, string& result)
 {
     /// Json格式
@@ -1235,6 +1390,16 @@ void BuildMemRefResult(PluginClient *client, Json::Value& root, string& result)
     client->ReceiveSendMsg("ValueResult", result);
 }
 
+void IsVirtualOperandResult(PluginClient *client, Json::Value& root, string& result)
+{
+     mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    uint64_t id = atol(root["id"].asString().c_str());
+    PluginAPI::PluginClientAPI clientAPI(context);
+    bool ret = clientAPI.IsVirtualOperand(id);
+    client->ReceiveSendMsg("BoolResult", std::to_string(ret));
+}
+
 void DebugValueResult(PluginClient *client, Json::Value& root, string& result)
 {
     /// Json格式
@@ -1250,6 +1415,31 @@ void DebugValueResult(PluginClient *client, Json::Value& root, string& result)
     PluginJson json = client->GetJson();
     json.NopJsonSerialize(result);
     client->ReceiveSendMsg("ValueResult", result);
+}
+
+void DebugOperationResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    std::string opIdKey = "opId";
+    uint64_t opId = atol(root[opIdKey].asString().c_str());
+    clientAPI.DebugOperation(opId);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
+}
+
+void DebugBlockResult(PluginClient *client, Json::Value& root, string& result)
+{
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<PluginDialect>();
+    PluginAPI::PluginClientAPI clientAPI(context);
+    uint64_t bb = atol(root["bbAddr"].asString().c_str());
+    clientAPI.DebugBlock(bb);
+    PluginJson json = client->GetJson();
+    json.NopJsonSerialize(result);
+    client->ReceiveSendMsg("VoidResult", result);
 }
 
 void IsLtoOptimizeResult(PluginClient *client, Json::Value& root, string& result)
@@ -1314,6 +1504,7 @@ std::map<string, GetResultFunc> g_getResultFunc = {
     {"GetLoopExits", GetLoopExitsResult},
     {"GetLoopSingleExit", GetLoopSingleExitResult},
     {"GetBlockLoopFather", GetBlockLoopFatherResult},
+    {"FindCommonLoop", FindCommonLoopResult},
     {"CreateBlock", CreateBlockResult},
     {"DeleteBlock", DeleteBlockResult},
     {"SetImmediateDominator", SetImmediateDominatorResult},
@@ -1332,6 +1523,7 @@ std::map<string, GetResultFunc> g_getResultFunc = {
     {"CreateConstOp", CreateConstOpResult},
     {"UpdateSSA", UpdateSSAResult},
     {"GetAllPhiOpInsideBlock", GetAllPhiOpInsideBlockResult},
+    {"GetAllOpsInsideBlock", GetAllOpsInsideBlockResult},
     {"IsDomInfoAvailable", IsDomInfoAvailableResult},
     {"GetCurrentDefFromSSA", GetCurrentDefFromSSAResult},
     {"SetCurrentDefInSSA", SetCurrentDefInSSAResult},
@@ -1341,9 +1533,23 @@ std::map<string, GetResultFunc> g_getResultFunc = {
     {"RemoveEdge", RemoveEdgeResult},
     {"ConfirmValue", ConfirmValueResult},
     {"BuildMemRef", BuildMemRefResult},
+    {"IsVirtualOperand", IsVirtualOperandResult},
     {"DebugValue", DebugValueResult},
-    {"IsLtoOptimize",IsLtoOptimizeResult},
-    {"IsWholeProgram",IsWholeProgramResult},
+    {"DebugOperation", DebugOperationResult},
+    {"DebugBlock", DebugBlockResult},
+    {"IsLtoOptimize", IsLtoOptimizeResult},
+    {"IsWholeProgram", IsWholeProgramResult},
+    {"CalDominanceInfo", CalDominanceInfoResult},
+    {"GetImmUseStmts", GetImmUseStmtsResult},
+    {"GetGimpleVuse", GetGimpleVuseResult},
+    {"GetGimpleVdef", GetGimpleVdefResult},
+    {"GetSsaUseOperand", GetSsaUseOperandResult},
+    {"GetSsaDefOperand", GetSsaDefOperandResult},
+    {"GetPhiOrStmtUse", GetPhiOrStmtUseResult},
+    {"GetPhiOrStmtDef", GetPhiOrStmtDefResult},
+    {"RefsMayAlias", RefsMayAliasResult},
+    {"PTIncludesDecl", PTIncludesDeclResult},
+    {"PTsIntersect", PTsIntersectResult}
 };
 
 void PluginClient::GetIRTransResult(void *gccData, const string& funcName, const string& param)
