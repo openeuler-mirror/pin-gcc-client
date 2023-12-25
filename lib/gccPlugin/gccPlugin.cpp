@@ -193,6 +193,7 @@ static std::map<RefPassName, string> g_refPassName {
     {PASS_PHIOPT, "phiopt"},
     {PASS_SSA, "ssa"},
     {PASS_LOOP, "loop"},
+    {PASS_LAD, "laddress"},
     {PASS_MAC, "materialize-all-clones"},
 };
 
@@ -229,6 +230,10 @@ void RegisterPassManagerSetup(unsigned int index, const ManagerSetupData& setupD
             passInfo.pass = new GimplePass(passData, index);
             break;
         case PASS_LOOP:
+            passData.type = GIMPLE_PASS;
+            passInfo.pass = new GimplePass(passData, index);
+            break;
+        case PASS_LAD:
             passData.type = GIMPLE_PASS;
             passInfo.pass = new GimplePass(passData, index);
             break;

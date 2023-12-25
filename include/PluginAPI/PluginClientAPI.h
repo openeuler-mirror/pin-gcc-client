@@ -92,6 +92,7 @@ public:
     vector<std::pair<uint64_t, uint64_t> > GetLoopExits(uint64_t) override;
     std::pair<uint64_t, uint64_t> GetLoopSingleExit(uint64_t) override;
     LoopOp GetBlockLoopFather(uint64_t) override;
+    LoopOp FindCommonLoop(uint64_t, uint64_t) override;
     PhiOp GetPhiOp(uint64_t) override;
     CallOp GetCallOp(uint64_t) override;
     /* Plugin API for CallOp. */
@@ -110,9 +111,12 @@ public:
     mlir::Value CreateConstOp(mlir::Attribute, mlir::Type) override;
     bool UpdateSSA() override;
     vector<PhiOp> GetPhiOpsInsideBlock(uint64_t bb) override;
+    vector<uint64_t> GetOpsInsideBlock(uint64_t bb) override;
     bool IsDomInfoAvailable() override;
     mlir::Value GetValue(uint64_t) override;
     void DebugValue(uint64_t) override;
+    void DebugOperation(uint64_t) override;
+    void DebugBlock(uint64_t) override;
     mlir::Value BuildMemRef(PluginIR::PluginTypeBase, uint64_t, uint64_t) override;
 
     mlir::Value GetCurrentDefFromSSA(uint64_t) override;
@@ -128,6 +132,20 @@ public:
 
     bool IsLtoOptimize() override;
     bool IsWholeProgram() override;
+
+    bool IsVirtualOperand(uint64_t) override;
+    /* Plugin API for Data Flow*/
+    void CalDominanceInfo(uint64_t, uint64_t) override;
+    virtual vector<uint64_t> GetImmUseStmts(uint64_t) override;
+    virtual mlir::Value GetGimpleVuse(uint64_t) override;
+    virtual mlir::Value GetGimpleVdef(uint64_t) override;
+    virtual vector<mlir::Value> GetSsaUseOperand(uint64_t) override;
+    virtual vector<mlir::Value> GetSsaDefOperand(uint64_t) override;
+    virtual vector<mlir::Value> GetPhiOrStmtUse(uint64_t) override;
+    virtual vector<mlir::Value> GetPhiOrStmtDef(uint64_t) override;
+    virtual bool RefsMayAlias(uint64_t, uint64_t, uint64_t) override;
+    virtual bool PTIncludesDecl(uint64_t, uint64_t) override;
+    virtual bool PTsIntersect(uint64_t, uint64_t) override;
 private:
     PluginIR::GimpleToPluginOps gimpleConversion;
 }; // class PluginClientAPI

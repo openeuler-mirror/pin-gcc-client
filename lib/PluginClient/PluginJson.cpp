@@ -444,6 +444,38 @@ void PluginJson::LoopOpJsonSerialize(mlir::Plugin::LoopOp& loop, string& out)
     out = root.toStyledString();
 }
 
+void PluginJson::OpsJsonSerialize(vector<std::pair<mlir::Operation*, uint64_t>>& ops, string& out)
+{
+    Json::Value root;
+    Json::Value item;
+    int i = 0;
+    string index;
+
+    for (auto& op : ops) {
+        item = OperationJsonSerialize(op.first, op.second);
+        index = "Op" + std::to_string(i++);
+        root[index] = item;
+        item.clear();
+    }
+    out = root.toStyledString();
+}
+
+void PluginJson::ValuesJsonSerialize(vector<mlir::Value>& values, string& out)
+{
+    Json::Value root;
+    Json::Value item;
+    int i = 0;
+    string index;
+
+    for (auto& v : values) {
+        item = ValueJsonSerialize(v);
+        index = "Value" + std::to_string(i++);
+        root[index] = item;
+        item.clear();
+    }
+    out = root.toStyledString();
+}
+
 void PluginJson::IDsJsonSerialize(vector<uint64_t>& ids, string& out)
 {
     Json::Value root;

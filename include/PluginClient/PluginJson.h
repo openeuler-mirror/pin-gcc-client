@@ -52,7 +52,9 @@ public:
     void FunctionDeclsJsonSerialize(vector<mlir::Plugin::DeclBaseOp>& decls, string& out);
     void FiledOpsJsonSerialize(vector<mlir::Plugin::FieldDeclOp>& decls, string& out);
     void GetPhiOpsJsonSerialize(vector<mlir::Plugin::PhiOp> phiOps, string& out);
-    Json::Value OperationJsonSerialize(mlir::Operation *, uint64_t&);
+    void OpsJsonSerialize(vector<std::pair<mlir::Operation*, uint64_t>>& ops, string& out);
+    void ValuesJsonSerialize(vector<mlir::Value>& values, string& out);
+    Json::Value OperationJsonSerialize(mlir::Operation*, uint64_t&);
     Json::Value CallOpJsonSerialize(mlir::Plugin::CallOp& data);
     Json::Value CondOpJsonSerialize(mlir::Plugin::CondOp& data, uint64_t&);
     Json::Value PhiOpJsonSerialize(mlir::Plugin::PhiOp& data);
