@@ -64,6 +64,8 @@ enum PluginTypeID {
 class PluginTypeBase : public Type {
 public:
     using Type::Type;
+    /// FIXME.
+    static bool classof(Type type) { return true; }
 
     PluginTypeID getPluginTypeID ();
     unsigned getPluginIntOrFloatBitWidth ();

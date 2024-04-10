@@ -71,7 +71,7 @@ void FunctionOp::build(OpBuilder &builder, OperationState &state,
 
 Type FunctionOp::getResultType()
 {
-    PluginIR::PluginFunctionType resultType = type().dyn_cast<PluginIR::PluginFunctionType>();
+    PluginIR::PluginFunctionType resultType = getType().dyn_cast<PluginIR::PluginFunctionType>();
     return resultType;
 }
 
@@ -173,7 +173,7 @@ void PointerOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
 
 void DeclBaseOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
                       IDefineCode defCode, bool readOnly, bool addressable, bool used, int32_t uid, Value initial,
-                      Value name, Optional<uint64_t> chain, Type retType)
+                      Value name, std::optional<uint64_t> chain, Type retType)
 {
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addAttribute("defCode",
@@ -184,7 +184,7 @@ void DeclBaseOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
     state.addAttribute("uid", builder.getI32IntegerAttr(uid));
     state.addOperands(initial);
     if(chain) {
-        state.addAttribute("chain", builder.getI64IntegerAttr(chain.getValue()));
+        state.addAttribute("chain", builder.getI64IntegerAttr(chain.value()));
     }
     state.addOperands(name);
     state.addTypes(retType);
@@ -194,27 +194,27 @@ void DeclBaseOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
 // BlockOp
 
 void BlockOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
-                      IDefineCode defCode, bool readOnly, Optional<Value> vars, Optional<uint64_t> supercontext,
-                      Optional<Value> subblocks, Optional<Value> abstract_origin, Optional<Value> chain, Type retType)
+                      IDefineCode defCode, bool readOnly, std::optional<Value> vars, std::optional<uint64_t> supercontext,
+                      std::optional<Value> subblocks, std::optional<Value> abstract_origin, std::optional<Value> chain, Type retType)
 {
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addAttribute("defCode",
         builder.getI32IntegerAttr(static_cast<int32_t>(defCode)));
     state.addAttribute("readOnly", builder.getBoolAttr(readOnly));
     if(vars) {
-        state.addOperands(vars.getValue());
+        state.addOperands(vars.value());
     }
     if(supercontext) {
-        state.addAttribute("supercontext", builder.getI64IntegerAttr(supercontext.getValue()));
+        state.addAttribute("supercontext", builder.getI64IntegerAttr(supercontext.value()));
     }
     if(subblocks) {
-        state.addOperands(subblocks.getValue());
+        state.addOperands(subblocks.value());
     }
     if(abstract_origin) {
-        state.addOperands(abstract_origin.getValue());
+        state.addOperands(abstract_origin.value());
     }
     if(chain) {
-        state.addOperands(chain.getValue());
+        state.addOperands(chain.value());
     }
     state.addTypes(retType);
 }
@@ -378,11 +378,17 @@ CallInterfaceCallable CallOp::getCallableForCallee()
     return (*this)->getAttrOfType<SymbolRefAttr>("callee");
 }
 
+/// Set the callee for the generic call operation, this is required by the call
+/// interface.
+void CallOp::setCalleeFromCallable(CallInterfaceCallable callee) {
+    (*this)->setAttr("callee", callee.get<SymbolRefAttr>());
+}
+
 /// Get the argument operands to the called function, this is required by the
 /// call interface.
 Operation::operand_range CallOp::getArgOperands()
 {
-    return inputs();
+    return this->getInputs();
 }
 
 // ===----------------------------------------------------------------------===//
@@ -448,9 +454,10 @@ void AsmOp::build(OpBuilder &builder, OperationState &state,
 
 //===----------------------------------------------------------------------===//
 // SwitchOp
-void SwitchOp::build(OpBuilder &builder, OperationState &state,
-                   uint64_t id, Value index, uint64_t address, Value defaultLabel, ArrayRef<Value> operands,
-                   Block* defaultDest, uint64_t defaultaddr, ArrayRef<Block*> caseDest, ArrayRef<uint64_t> caseaddr)
+void SwitchOp::build(OpBuilder &builder, OperationState &state, uint64_t id,
+                     Value index, uint64_t address, Value defaultLabel,
+                     ArrayRef<Value> args, Block* defaultDest, uint64_t defaultaddr,
+                     ArrayRef<Block*> caseDest, ArrayRef<uint64_t> caseaddr)
 {
     state.addAttribute("id", builder.getI64IntegerAttr(id));
     state.addAttribute("address", builder.getI64IntegerAttr(address));
@@ -462,7 +469,7 @@ void SwitchOp::build(OpBuilder &builder, OperationState &state,
     state.addAttribute("caseaddrs", builder.getArrayAttr(attributes));
     state.addOperands(index);
     state.addOperands(defaultLabel);
-    state.addOperands(operands);
+    state.addOperands(args);
     state.addSuccessors(defaultDest);
     state.addSuccessors(caseDest);
 }
