@@ -24,7 +24,7 @@ include "PluginDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 
-def CGnodeOp : Plugin_Op<"callgraphnode", [NoSideEffect]> {
+def CGnodeOp : Plugin_Op<"callgraphnode", [NoMemoryEffect]> {
   let summary = "callgraph node operation";
   let description = [{
     TODO.
@@ -47,7 +47,7 @@ def CGnodeOp : Plugin_Op<"callgraphnode", [NoSideEffect]> {
   ];
 }
 
-def FunctionOp : Plugin_Op<"function", [NoSideEffect]> {
+def FunctionOp : Plugin_Op<"function", [NoMemoryEffect]> {
   let summary = "function with a region";
   let description = [{
     TODO.
@@ -72,7 +72,7 @@ def FunctionOp : Plugin_Op<"function", [NoSideEffect]> {
   }];
 }
 
-def LocalDeclOp : Plugin_Op<"declaration", [NoSideEffect]> {
+def LocalDeclOp : Plugin_Op<"declaration", [NoMemoryEffect]> {
   let summary = "local variable declaration";
   let description = [{TODO}];
   let arguments = (ins OptionalAttr<UI64Attr>:$id,
@@ -86,7 +86,7 @@ def LocalDeclOp : Plugin_Op<"declaration", [NoSideEffect]> {
   ];
 }
 
-def LoopOp : Plugin_Op<"loop", [NoSideEffect]> {
+def LoopOp : Plugin_Op<"loop", [NoMemoryEffect]> {
   let summary = "loop operation";
   let description = [{
         TODO.
@@ -132,7 +132,7 @@ def CallOp : Plugin_Op<"call", [
   }];
 }
 
-def PhiOp : Plugin_Op<"phi", [NoSideEffect]> {
+def PhiOp : Plugin_Op<"phi", [NoMemoryEffect]> {
   let summary = "phi op";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id,
@@ -150,7 +150,7 @@ def PhiOp : Plugin_Op<"phi", [NoSideEffect]> {
   }];
 }
 
-def AssignOp : Plugin_Op<"assign", [NoSideEffect]> {
+def AssignOp : Plugin_Op<"assign", [NoMemoryEffect]> {
   let summary = "assign op";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id,
@@ -169,7 +169,7 @@ def AssignOp : Plugin_Op<"assign", [NoSideEffect]> {
   // let printer = [{ return ::print(p, *this); }];
 }
 
-def NopOp : Plugin_Op<"nop", [NoSideEffect]> {
+def NopOp : Plugin_Op<"nop", [NoMemoryEffect]> {
   let summary = "nop";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id);
@@ -179,7 +179,7 @@ def NopOp : Plugin_Op<"nop", [NoSideEffect]> {
   ];
 }
 
-def EHElseOp : Plugin_Op<"eh_else", [NoSideEffect]> {
+def EHElseOp : Plugin_Op<"eh_else", [NoMemoryEffect]> {
   let summary = "EHElseOP";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id, ArrayAttr:$nBody, ArrayAttr:$eBody);
@@ -293,13 +293,13 @@ def DeclBaseOp : DeclBase<"decl"> {
   let builders = [
     OpBuilder<(ins "uint64_t":$id, "IDefineCode":$defCode,
                       "bool":$readOnly, "bool":$addressable, "bool":$used, "int":$uid, "Value":$initial,
-                      "Value":$name, "Optional<uint64_t>":$chain, "Type":$retType)>
+                      "Value":$name, "std::optional<uint64_t>":$chain, "Type":$retType)>
   ];
   let extraClassDeclaration = [{
     Type getResultType() { return this->getOperation()->getResult(0).getType(); }
-    Value GetInitial() { return initial(); }
-    Value GetName() { return name(); }
-    Optional<uint64_t> GetChain() { return chain(); }
+    Value GetInitial() { return getInitial(); }
+    Value GetName() { return getName(); }
+    std::optional<uint64_t> GetChain() { return getChain(); }
   }];
 }
 
@@ -308,17 +308,17 @@ def BlockOp : BLOCK<"block"> {
   let description = [{TODO}];
   let builders = [
     OpBuilder<(ins "uint64_t":$id, "IDefineCode":$defCode,
-                      "bool":$readOnly, "Optional<Value>":$vars, "Optional<uint64_t>":$supercontext,
-                      "Optional<Value>":$subblocks, "Optional<Value>":$chain,
-                      "Optional<Value>":$abstract_origin, "Type":$retType)>
+                      "bool":$readOnly, "std::optional<Value>":$vars, "std::optional<uint64_t>":$supercontext,
+                      "std::optional<Value>":$subblocks, "std::optional<Value>":$chain,
+                      "std::optional<Value>":$abstract_origin, "Type":$retType)>
   ];
   let extraClassDeclaration = [{
     Type getResultType() { return this->getOperation()->getResult(0).getType(); }
-    Value GetVars() { return vars(); }
-    Optional<uint64_t> GetSupercontext() { return supercontext(); }
-    Value GetSubblocks() { return subblocks(); }
-    Value GetChain() { return chain(); }
-    Value GetAbstractorigin() { return abstract_origin(); }
+    Value GetVars() { return getVars(); }
+    std::optional<uint64_t> GetSupercontext() { return getSupercontext(); }
+    Value GetSubblocks() { return getSubblocks(); }
+    Value GetChain() { return getChain(); }
+    Value GetAbstractorigin() { return getAbstractOrigin(); }
   }];
 }
 
@@ -342,11 +342,11 @@ def FieldDeclOp : FieldDecl<"field"> {
 ];
   let extraClassDeclaration = [{
     Type getResultType() { return this->getOperation()->getResult(0).getType(); }
-    Value GetInitial() { return initial(); }
-    Value GetName() { return name(); }
-    Optional<uint64_t> GetChain() { return chain(); }
-    Value GetFieldOffset() { return fieldOffset(); }
-    Value GetFieldBitOffset() { return fieldBitOffset(); }
+    Value GetInitial() { return getInitial(); }
+    Value GetName() { return getName(); }
+    std::optional<uint64_t> GetChain() { return getChain(); }
+    Value GetFieldOffset() { return getFieldOffset(); }
+    Value GetFieldBitOffset() { return getFieldBitOffset(); }
   }];
 }
 
@@ -359,7 +359,7 @@ def AddressOp : Address<"address"> {
 ];
   let extraClassDeclaration = [{
     Type getResultType() { return this->getOperation()->getResult(0).getType(); }
-    Value GetOperand() { return operand(); }
+    Value GetOperand() { return getOperand(); }
   }];
 }
 
@@ -471,7 +471,7 @@ def ArrayOp : ArrayRef<"ArrayRef"> {
   }];
 }
 
-def BaseOp : Plugin_Op<"statement_base", [NoSideEffect]> {
+def BaseOp : Plugin_Op<"statement_base", [NoMemoryEffect]> {
   let summary = "Base operation, just like placeholder for statement.";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id, StrAttr:$opCode);
@@ -481,7 +481,7 @@ def BaseOp : Plugin_Op<"statement_base", [NoSideEffect]> {
   ];
 }
 
-def DebugOp : Plugin_Op<"debug", [NoSideEffect]> {
+def DebugOp : Plugin_Op<"debug", [NoMemoryEffect]> {
   let summary = "DebugOp.";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id);
@@ -491,7 +491,7 @@ def DebugOp : Plugin_Op<"debug", [NoSideEffect]> {
   ];
 }
 
-def AsmOp : Plugin_Op<"asm", [NoSideEffect]> {
+def AsmOp : Plugin_Op<"asm", [NoMemoryEffect]> {
   let summary = "asm Op";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id, StrAttr:$statement, UI32Attr:$nInputs, UI32Attr:$nOutputs, UI32Attr:$nClobbers,
@@ -503,17 +503,17 @@ def AsmOp : Plugin_Op<"asm", [NoSideEffect]> {
   ];
 
   let extraClassDeclaration = [{
-    unsigned GetNInputs() { return this->nInputsAttr().getInt(); };
-    unsigned GetNoutputs() { return this->nOutputsAttr().getInt(); };
-    unsigned GetNClobbers() { return this->nClobbersAttr().getInt(); };
+    unsigned GetNInputs() { return this->getNInputsAttr().getInt(); };
+    unsigned GetNoutputs() { return this->getNOutputsAttr().getInt(); };
+    unsigned GetNClobbers() { return this->getNClobbersAttr().getInt(); };
     Value GetInputOp(unsigned index) { return getOperand(index); };
-    Value GetOutputOp(unsigned index) { return getOperand(this->nInputsAttr().getInt() + index); };
+    Value GetOutputOp(unsigned index) { return getOperand(this->getNInputsAttr().getInt() + index); };
     Value GetCkobberOp(unsigned index) { 
-      return getOperand(this->nInputsAttr().getInt() + this->nOutputsAttr().getInt() + index); };
+      return getOperand(this->getNInputsAttr().getInt() + this->getNOutputsAttr().getInt() + index); };
   }]; 
 }
 
-def LabelOp : Plugin_Op<"label", [NoSideEffect]> {
+def LabelOp : Plugin_Op<"label", [NoMemoryEffect]> {
   let summary = "Label op.";
   let description = [{TODO}];
   let results = (outs AnyType:$result);
@@ -526,7 +526,7 @@ def LabelOp : Plugin_Op<"label", [NoSideEffect]> {
   }];
 }
 
-def EHMntOp : Plugin_Op<"eh_mnt", [NoSideEffect]> {
+def EHMntOp : Plugin_Op<"eh_mnt", [NoMemoryEffect]> {
   let summary = "EH_MUST_NOT_THROW op.";
   let description = [{TODO}];
   let results = (outs AnyType:$result);
@@ -535,11 +535,11 @@ def EHMntOp : Plugin_Op<"eh_mnt", [NoSideEffect]> {
     OpBuilder<(ins "uint64_t":$id, "Value":$decl)>
   ];
   let extraClassDeclaration = [{
-    Value Getfndecl() { return decl(); };
+    Value Getfndecl() { return getDecl(); };
   }];
 }
 
-def BindOp : Plugin_Op<"Bind", [NoSideEffect]> {
+def BindOp : Plugin_Op<"Bind", [NoMemoryEffect]> {
   let summary = "BindOp";
   let description = [{TODO}];
   let results = (outs AnyType:$result);
@@ -548,12 +548,12 @@ def BindOp : Plugin_Op<"Bind", [NoSideEffect]> {
     OpBuilder<(ins "uint64_t":$id, "Value":$vars, "ArrayRef<uint64_t>":$body, "Value":$block)>
   ];
   let extraClassDeclaration = [{
-    Value GetVars() { return vars(); };
-    Value GetBlock() { return block(); };
+    Value GetVars() { return getVars(); };
+    Value GetBlock() { return getBlock(); };
   }];
 }
 
-def TryOp : Plugin_Op<"try", [NoSideEffect]> {
+def TryOp : Plugin_Op<"try", [NoMemoryEffect]> {
   let summary = "TryOp";
   let description = [{TODO}];
   let results = (outs AnyType:$result);
@@ -563,7 +563,7 @@ def TryOp : Plugin_Op<"try", [NoSideEffect]> {
   ];
 }
 
-def CatchOp : Plugin_Op<"catch", [NoSideEffect]> {
+def CatchOp : Plugin_Op<"catch", [NoMemoryEffect]> {
   let summary = "CatchOp";
   let description = [{TODO}];
   let results = (outs AnyType:$result);
@@ -572,7 +572,7 @@ def CatchOp : Plugin_Op<"catch", [NoSideEffect]> {
     OpBuilder<(ins "uint64_t":$id, "Value":$types, "ArrayRef<uint64_t>":$handler)>
   ];
   let extraClassDeclaration = [{
-    Value GetTypes() { return types(); };
+    Value GetTypes() { return getTypes(); };
   }];
 }
 // Terminators
@@ -581,30 +581,31 @@ def CatchOp : Plugin_Op<"catch", [NoSideEffect]> {
 class Plugin_TerminatorOp<string mnemonic, list<Trait> traits = []> :
     Plugin_Op<mnemonic, !listconcat(traits, [Terminator])>;
 
-def SwitchOp : Plugin_TerminatorOp<"switch", [NoSideEffect]> {
+def SwitchOp : Plugin_TerminatorOp<"switch", [NoMemoryEffect]> {
   let summary = "switch op.";
   let description = [{TODO}];
   let successors = (successor
     AnySuccessor:$defaultDestination,
     VariadicSuccessor<AnySuccessor>:$caseDestinations
   );
-  let arguments = (ins UI64Attr:$id, AnyType:$index, UI64Attr:$address, AnyType:$defaultLabel, Variadic<AnyType>:$operands,
-                  UI64Attr:$defaultaddr, ArrayAttr:$caseaddrs);
+  let arguments = (ins UI64Attr:$id, AnyType:$index, UI64Attr:$address,
+                   AnyType:$defaultLabel, Variadic<AnyType>:$args,
+                   UI64Attr:$defaultaddr, ArrayAttr:$caseaddrs);
   let results = (outs AnyType:$result);
   let builders = [
     OpBuilder<(ins "uint64_t":$id, "Value":$index, "uint64_t":$address, "Value":$defaultLabel,
-                      "ArrayRef<Value>":$operands, "Block*":$defaultDestination, "uint64_t":$defaultaddr,
+                      "ArrayRef<Value>":$args, "Block*":$defaultDestination, "uint64_t":$defaultaddr,
                       "ArrayRef<Block*>":$caseDestinations, "ArrayRef<uint64_t>":$caseaddrs)>
   ];
 
   let extraClassDeclaration = [{
     unsigned GetNumLabels() { return getNumOperands() - 2; };
-    Block* GetDefautDest() { return defaultDestination();}
-    SmallVector<mlir::Block*> GetCaseDest() { return caseDestinations(); };
+    Block* GetDefautDest() { return getDefaultDestination(); }
+    SmallVector<mlir::Block*> GetCaseDest() { return getCaseDestinations(); };
   }];
 }
 
-def FallThroughOp : Plugin_TerminatorOp<"fallthrough", [NoSideEffect]> {
+def FallThroughOp : Plugin_TerminatorOp<"fallthrough", [NoMemoryEffect]> {
   let summary = "FallThroughOp";
   let description = [{TODO}];
   let successors = (successor AnySuccessor:$dest);
@@ -616,7 +617,7 @@ def FallThroughOp : Plugin_TerminatorOp<"fallthrough", [NoSideEffect]> {
   ];
 }
 
-def CondOp : Plugin_TerminatorOp<"condition", [NoSideEffect]> {
+def CondOp : Plugin_TerminatorOp<"condition", [NoMemoryEffect]> {
   let summary = "condition op";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id, UI64Attr:$address,
@@ -639,7 +640,7 @@ def CondOp : Plugin_TerminatorOp<"condition", [NoSideEffect]> {
 }
 
 // todo: currently RetOp do not have a correct assemblyFormat
-def RetOp : Plugin_TerminatorOp<"ret", [NoSideEffect]> {
+def RetOp : Plugin_TerminatorOp<"ret", [NoMemoryEffect]> {
   let summary = "RetOp";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$address); // for bb address
@@ -649,7 +650,7 @@ def RetOp : Plugin_TerminatorOp<"ret", [NoSideEffect]> {
   ];
 }
 
-def GotoOp : Plugin_TerminatorOp<"goto", [NoSideEffect]> {
+def GotoOp : Plugin_TerminatorOp<"goto", [NoMemoryEffect]> {
   let summary = "GotoOp";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id, UI64Attr:$address, AnyType:$dest, UI64Attr:$successaddr);
@@ -664,7 +665,7 @@ def GotoOp : Plugin_TerminatorOp<"goto", [NoSideEffect]> {
   }];
 }
 
-def TransactionOp : Plugin_TerminatorOp<"transaction", [NoSideEffect]> {
+def TransactionOp : Plugin_TerminatorOp<"transaction", [NoMemoryEffect]> {
   let summary = "TransactionOp";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id, UI64Attr:$address, ArrayAttr:$stmtaddr, AnyType:$labelNorm,
@@ -678,13 +679,13 @@ def TransactionOp : Plugin_TerminatorOp<"transaction", [NoSideEffect]> {
   ];
 
   let extraClassDeclaration = [{
-    Value GetTransactionNormal() { return labelNorm(); }
-    Value GetTransactionUinst() { return labelUninst(); }
-    Value GetTransactionOver() { return labelOver(); }
+    Value GetTransactionNormal() { return getLabelNorm(); }
+    Value GetTransactionUinst() { return getLabelUninst(); }
+    Value GetTransactionOver() { return getLabelOver(); }
   }];
 }
 
-def ResxOp : Plugin_TerminatorOp<"resx", [NoSideEffect]> {
+def ResxOp : Plugin_TerminatorOp<"resx", [NoMemoryEffect]> {
   let summary = "ResxOp";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id, UI64Attr:$address, UI64Attr:$region);
@@ -693,11 +694,11 @@ def ResxOp : Plugin_TerminatorOp<"resx", [NoSideEffect]> {
     OpBuilder<(ins "uint64_t":$id, "uint64_t":$address, "uint64_t":$region)>
   ];
   let extraClassDeclaration = [{
-    uint64_t GetTransactionNormal() { return region(); }
+    uint64_t GetTransactionNormal() { return getRegion(); }
   }];
 }
 
-def EHDispatchOp : Plugin_TerminatorOp<"dispatch", [NoSideEffect]> {
+def EHDispatchOp : Plugin_TerminatorOp<"dispatch", [NoMemoryEffect]> {
   let summary = "EHDispatchOp";
   let description = [{TODO}];
   let arguments = (ins UI64Attr:$id, UI64Attr:$address, UI64Attr:$region, ArrayAttr:$ehHandlersaddrs);
@@ -708,7 +709,7 @@ def EHDispatchOp : Plugin_TerminatorOp<"dispatch", [NoSideEffect]> {
                   "ArrayRef<uint64_t>":$ehHandlersaddrs)>
   ];
   let extraClassDeclaration = [{
-    uint64_t GetTransactionNormal() { return region(); }
+    uint64_t GetTransactionNormal() { return getRegion(); }
   }];
 }
 #endif // PLUGIN_OPS_TD

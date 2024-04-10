@@ -443,7 +443,7 @@ vector<DeclBaseOp> GimpleToPluginOps::GetFuncDecls(uint64_t funcID)
             int32_t uid = DECL_UID(var);
             mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(var));
             mlir::Value name = TreeToValue((uint64_t)DECL_NAME(var));
-            llvm::Optional<uint64_t> chain = (uint64_t)DECL_CHAIN(var);
+            std::optional<uint64_t> chain = (uint64_t)DECL_CHAIN(var);
             bool readOnly = false;
             PluginTypeBase rPluginType = PluginUndefType::get(builder.getContext());
             GetTreeAttr(id, readOnly, rPluginType);
@@ -528,7 +528,7 @@ DeclBaseOp GimpleToPluginOps::BuildDecl(IDefineCode code, string name, PluginTyp
     int32_t uid = DECL_UID(t);
     mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(t));
     mlir::Value tname = TreeToValue((uint64_t)DECL_NAME(t));
-    llvm::Optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
+    std::optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
     bool readOnly = false;
     PluginTypeBase rPluginType = PluginUndefType::get(builder.getContext());
     GetTreeAttr(id, readOnly, rPluginType);
@@ -855,7 +855,7 @@ FunctionOp GimpleToPluginOps::BuildFunctionOp(uint64_t functionId)
         retOp = builder.create<FunctionOp>(location, functionId,
                                         funcName, declaredInline, Ty, validType);
     }
-    auto& fr = retOp.bodyRegion();
+    auto& fr = retOp.getBodyRegion();
     if (fn->cfg == nullptr) return retOp;
     if (!ProcessBasicBlock((intptr_t)ENTRY_BLOCK_PTR_FOR_FN(fn), fr)) {
         // handle error
@@ -1523,7 +1523,12 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
                 unsigned HOST_WIDE_INT uinit = tree_to_uhwi(t);
                 initAttr = builder.getI64IntegerAttr(uinit);
             } else {
-                abort();
+                wide_int val = wi::to_wide(t);
+                if (wi::neg_p(val, TYPE_SIGN(TREE_TYPE(t)))) {
+                    val = -val;
+                }
+                signed HOST_WIDE_INT init = val.to_shwi();
+                initAttr = builder.getI64IntegerAttr(init);
             }
 			GetTreeAttr(treeId, readOnly, rPluginType);
             opValue = builder.create<ConstOp>(
@@ -1623,7 +1628,7 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             // postgresql-11.3 ICE
             mlir::Value initial = builder.create<PlaceholderOp>(builder.getUnknownLoc(), 0, IDefineCode::UNDEF, 0, rPluginType);
             mlir::Value name = TreeToValue((uint64_t)DECL_NAME(t));
-            llvm::Optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
+            std::optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
             GetTreeAttr(treeId, readOnly, rPluginType);
             opValue = builder.create<DeclBaseOp>(
                 builder.getUnknownLoc(), treeId, IDefineCode::Decl, readOnly, addressable, used, uid, initial, name,
@@ -1641,7 +1646,7 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
             int32_t uid = DECL_UID(t);
             mlir::Value initial = TreeToValue((uint64_t)DECL_INITIAL(t));
             mlir::Value name = TreeToValue((uint64_t)DECL_NAME(t));
-            llvm::Optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
+            std::optional<uint64_t> chain = (uint64_t)DECL_CHAIN(t);
             GetTreeAttr(treeId, readOnly, rPluginType);
             opValue = builder.create<DeclBaseOp>(
                 builder.getUnknownLoc(), treeId, IDefineCode::Decl, readOnly, addressable, used, uid, initial, name,
@@ -1707,11 +1712,11 @@ Value GimpleToPluginOps::TreeToValue(uint64_t treeId)
                         treeId, IDefineCode::UNDEF, readOnly, rPluginType);
                 break;
             }
-            llvm::Optional<mlir::Value> vars = TreeToValue((uint64_t)BLOCK_VARS(t));
-            llvm::Optional<uint64_t> supercontext = (uint64_t)BLOCK_SUPERCONTEXT(t);
-            llvm::Optional<mlir::Value> subblocks = TreeToValue((uint64_t)BLOCK_SUBBLOCKS(t));
-            llvm::Optional<mlir::Value> chain = TreeToValue((uint64_t)BLOCK_CHAIN(t));
-            llvm::Optional<mlir::Value> abstract_origin = TreeToValue((uint64_t)BLOCK_ABSTRACT_ORIGIN(t));
+            std::optional<mlir::Value> vars = TreeToValue((uint64_t)BLOCK_VARS(t));
+            std::optional<uint64_t> supercontext = (uint64_t)BLOCK_SUPERCONTEXT(t);
+            std::optional<mlir::Value> subblocks = TreeToValue((uint64_t)BLOCK_SUBBLOCKS(t));
+            std::optional<mlir::Value> chain = TreeToValue((uint64_t)BLOCK_CHAIN(t));
+            std::optional<mlir::Value> abstract_origin = TreeToValue((uint64_t)BLOCK_ABSTRACT_ORIGIN(t));
             GetTreeAttr(treeId, readOnly, rPluginType);
             opValue = builder.create<BlockOp>(
                 builder.getUnknownLoc(), treeId, IDefineCode::BLOCK, readOnly, vars, supercontext, subblocks,

@@ -1749,7 +1749,12 @@ static bool WaitServer(const string& port)
     mode_t mask = umask(0);
     mode_t mode = 0666; // 权限是rwrwrw，跨进程时，其他用户也要可以访问
     string semFile = "wait_server_startup" + port;
-    sem_t *sem = sem_open(semFile.c_str(), O_CREAT, mode, 0);
+    sem_t *sem = sem_open(semFile.c_str(), O_CREAT | O_EXCL, mode, 0);
+    // Semaphore exception handling.
+    if (sem == SEM_FAILED) {
+        sem_unlink(semFile.c_str());
+        sem = sem_open(semFile.c_str(), O_CREAT, mode, 0);
+    }
     umask(mask);
     int i = 0;
     for (; i < cnt; i++) {
@@ -1770,8 +1775,13 @@ static bool WaitServer(const string& port)
 int PluginClient::ServerStart(pid_t& pid)
 {
     if (!grpcPort.FindUnusedPort()) {
-        LOGE("cannot find port for grpc,port 40001-65535 all used!\n");
-        return -1;
+        // Rectify the fault that the port number is not released
+        // because the client is abnormal.
+        LOGW("cannot find port for grpc, try again!\n");
+        if (!grpcPort.FindUnusedPort()) {
+            LOGE("cannot find port for grpc,port 40001-65534 all used!\n");
+            return -1;
+        }
     }
 
     int ret = 0;
