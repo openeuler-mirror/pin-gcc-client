@@ -17,6 +17,7 @@
 */
 
 #include "PluginAPI/PluginClientAPI.h"
+#include <unistd.h>
 
 namespace PluginAPI {
 
@@ -91,6 +92,8 @@ vector<FunctionOp> PluginClientAPI::GetAllFunc()
 {
     return gimpleConversion.GetAllFunction();
 }
+
+void PluginClientAPI::ShutdownCompile() { _exit(0); }
 
 vector<uint64_t> PluginClientAPI::GetFunctions()
 {

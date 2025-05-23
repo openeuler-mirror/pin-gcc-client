@@ -38,6 +38,7 @@ public:
     string FuncName(int64_t gccDataAddr) override;
     int GetDeclSourceLine(uint64_t gccDataAddr) override;
     int GetDeclSourceColumn(uint64_t gccDataAddr) override;
+    void ShutdownCompile() override;
 
     uint64_t CreateBlock(uint64_t, uint64_t) override;
     void DeleteBlock(uint64_t, uint64_t) override;
